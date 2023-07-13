@@ -70,7 +70,7 @@ cumulative_return, ts_holdings, obj = strategy_returns(
 ```
 """
 function strategy_returns(
-    obj::FinancialInstrument,
+    obj::Asset,
     pricing_model,
     strategy_type,
     future_prices,
@@ -240,7 +240,7 @@ cumulative_return, ts_holdings, obj_array = strategy_returns(
 ```
 """
 function strategy_returns(
-    objs::Vector{<:FinancialInstrument},
+    objs::Vector{<:Asset},
     pricing_model,
     strategy_type,
     future_prices,
@@ -446,7 +446,7 @@ pricing_model. To be used in `strategy()` functions to define trading and hedgin
 - `kwargs`: pass through for any keyword arguments needed by the `pricing_model` in `price!()` function
 """
 function buy(
-    fin_obj::FinancialInstrument,
+    fin_obj::Asset,
     number,
     holdings,
     pricing_model,
@@ -519,7 +519,7 @@ pricing_model. To be used in `strategy()` functions to define trading and hedgin
 - `kwargs`: pass through for any keyword arguments needed by the `pricing_model` in `price!()` function
 """
 function sell(
-    fin_obj::FinancialInstrument,
+    fin_obj::Asset,
     number,
     holdings,
     pricing_model,
@@ -564,7 +564,7 @@ function sell(
     return holdings
 end
 
-function unwind(obj::FinancialInstrument, pricing_model, holdings)
+function unwind(obj::Asset, pricing_model, holdings)
     profit = 0
     if obj.maturity == 0 # should have got closed out in update_obj, but this is will catch as well
         profit += holdings["$(obj.label)"] * Models.price!(obj, Expiry)  # close out obj
@@ -589,7 +589,7 @@ end
 # end
 
 function unwind(
-    obj_array::Vector{<:FinancialInstrument},
+    obj_array::Vector{<:Asset},
     widget_dict,
     pricing_model,
     holdings
@@ -624,7 +624,7 @@ end
 # single strategy_returns()
 # default update_function for all financial instruments and all pricing/ strategy modes
 function update_obj(
-    obj::FinancialInstrument,
+    obj::Asset,
     strategy_type,
     pricing_model,
     holdings,
@@ -696,7 +696,7 @@ end
 # for multi strategy_returns()
 # general update_obj function that will always fall back onto for multi strategy_returns()
 function update_obj(
-    obj_array::Vector{<:FinancialInstrument},
+    obj_array::Vector{<:Asset},
     widget_dict,
     strategy_type,
     pricing_model,

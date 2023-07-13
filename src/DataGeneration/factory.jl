@@ -51,7 +51,7 @@ function factory(widget::Widget, bootstrap_method, nWidgets)
 end
 
 function factory(
-    fin_instrument::FinancialInstrument,
+    fin_instrument::Asset,
     bootstrap_method,
     nInstruments,
 )
@@ -59,7 +59,7 @@ function factory(
     widget_ar = factory(fin_instrument.widget, bootstrap_method, nInstruments)
 
     # array for all the instruments 
-    instr_ar = Vector{FinancialInstrument}()
+    instr_ar = Vector{Asset}()
     kwargs = NamedTuple(fields .=> getfield.(Ref(fin_instrument), fields))
     for i = 1:nInstruments
         push!(instr_ar, typeof(fin_instrument)(; widget = widget_ar[i], kwargs...))
@@ -79,7 +79,7 @@ function field_exclude(widget::Stock)
     [p for p in fieldnames(typeof(widget)) if p ∉ [:prices, :volatility]]
 end
 
-function field_exclude(instr::FinancialInstrument)
+function field_exclude(instr::Asset)
     [p for p in fieldnames(typeof(instr)) if p ∉ [:widget]]
 end
 

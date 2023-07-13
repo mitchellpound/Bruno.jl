@@ -2,7 +2,7 @@
 # of the instrument. Ex: Stock call options house an underlying stock
 """FinancialInstrument is the supertype for any instrument that uses a base asset
 (widget) in its definition (like a financial derivative)."""
-abstract type FinancialInstrument end
+abstract type Derivative <: Asset end
 
 # ----- Type system for options: subtype of FinancialInstrument ------
 """
@@ -10,7 +10,7 @@ abstract type FinancialInstrument end
 
 Abstract FinancialInstrument subtype. Supertype of all options contract types.
 """
-abstract type Option <: FinancialInstrument end
+abstract type Option <: Derivative end
 
 # ----- Abstract type for all call and put options -----
 """
@@ -32,46 +32,29 @@ abstract type PutOption{T<:Widget} <: Option end
 
 European call option with underlying asset `T`. 
 """
-struct EuroCallOption{T<:Widget,S,D} <: CallOption{T}
-    widget::T
-    strike_price::S
-    maturity::S
-    risk_free_rate::S
-    label::String
-    values_library::Dict{String,Dict{String,D}}
-
-    # kwargs constructor
-    function EuroCallOption{T,S,D}(;
-        widget,
-        strike_price = widget.prices[end],
-        maturity = 1,
-        risk_free_rate = 0.02,
-        label = "",
-        values_library = Dict{String,Dict{String,D}}(),
-    ) where {T<:Widget,S,D}
-        strike_price >= 0 ? nothing : error("strike_price must be non-negative")
-        maturity >= 0 ? nothing : error("maturity must be positive ", maturity)
-        values_library == Dict{String,Dict{String,D}}() ? nothing :
-        @warn("It is not recommended to pass values through the constructor. \
-        price!(Instrument, pricing_model) should be used")
-        new{T,S,D}(widget, strike_price, maturity, risk_free_rate, label, values_library)
-    end
+Base.@kwdef struct EuroCallOption{T<:Asset,S} <: CallOption{T}
+    underlying::T
+    strike_price::S = price(underlying)
+    maturity::S = 1
+    risk_free_rate::S = .02
+    label::String = ""
 
     # ordered arguments constructor
-    function EuroCallOption{T,S,D}(
-        widget,
+    function EuroCallOption{T,S}(
+        underlying,
         strike_price,
         maturity,
         risk_free_rate,
-        label,
-        values_library,
-    ) where {T<:Widget,S,D}
+        label
+    ) where {T<:Widget,S}
         strike_price >= 0 ? nothing : error("strike_price must be non-negative")
         maturity >= 0 ? nothing : error("maturity must be positive")
-        values_library == Dict{String,Dict{String,D}}() ? nothing :
-        @warn("It is not recommended to pass values through the constructor. \
-        price!(Instrument, pricing_model) should be used")
-        new{T,S,D}(widget, strike_price, maturity, risk_free_rate, label, values_library)
+        new{T,S}(underlying, strike_price, maturity, risk_free_rate, label)
+    end
+
+    function EuroCallOption(underlying, strike_price, maturity, risk_free_rate, label)
+        promote(strike_price, maturity, risk_free_rate)
+        new{typeof(underlying),typeof(strike_price)}(underlying, strike_price, maturity, risk_free_rate, label)
     end
 end
 
@@ -100,37 +83,37 @@ kwargs = Dict(:widget=>stock, :strike_price=>10, :maturity=>1, :risk_free_rate=>
 EuroCallOption(;kwargs...)
 ```
 """
-function EuroCallOption(
-    widget,
-    strike_price = widget.prices[end],
-    maturity = 1,
-    risk_free_rate = 0.02,
-    label = "",
-    values_library = Dict{String,Dict{String,Float64}}(),
-)
-    T = typeof(widget)
-    strike_price, maturity, risk_free_rate = promote(strike_price, maturity, risk_free_rate)
-    S = typeof(strike_price)
-    D = valtype(valtype(values_library))
+# function EuroCallOption(
+#     widget,
+#     strike_price = widget.prices[end],
+#     maturity = 1,
+#     risk_free_rate = 0.02,
+#     label = "",
+#     values_library = Dict{String,Dict{String,Float64}}(),
+# )
+#     T = typeof(widget)
+#     strike_price, maturity, risk_free_rate = promote(strike_price, maturity, risk_free_rate)
+#     S = typeof(strike_price)
+#     D = valtype(valtype(values_library))
 
-    return EuroCallOption{T,S,D}(widget, strike_price, maturity, risk_free_rate, label, values_library)
-end
+#     return EuroCallOption{T,S,D}(widget, strike_price, maturity, risk_free_rate, label, values_library)
+# end
 
-function EuroCallOption(;
-    widget,
-    strike_price = widget.prices[end],
-    maturity = 1,
-    risk_free_rate = 0.02,
-    label = "",
-    values_library = Dict{String,Dict{String,Float64}}()
-)
-    T = typeof(widget)
-    strike_price, maturity, risk_free_rate = promote(strike_price, maturity, risk_free_rate)
-    S = typeof(strike_price)
-    D = valtype(valtype(values_library))
+# function EuroCallOption(;
+#     widget,
+#     strike_price = widget.prices[end],
+#     maturity = 1,
+#     risk_free_rate = 0.02,
+#     label = "",
+#     values_library = Dict{String,Dict{String,Float64}}()
+# )
+#     T = typeof(widget)
+#     strike_price, maturity, risk_free_rate = promote(strike_price, maturity, risk_free_rate)
+#     S = typeof(strike_price)
+#     D = valtype(valtype(values_library))
 
-    return EuroCallOption{T,S,D}(widget, strike_price, maturity, risk_free_rate, label, values_library)
-end
+#     return EuroCallOption{T,S,D}(widget, strike_price, maturity, risk_free_rate, label, values_library)
+# end
 
 """
     AmericanCallOption{T <: Widget} <: CallOption{T}
@@ -457,7 +440,7 @@ end
 
 Future contract with underlying asset 'T'.
 """
-struct Future{T<:Widget,S,D} <: FinancialInstrument
+struct Future{T<:Widget,S,D} <: Derivative
     widget::T
     strike_price::S
     risk_free_rate::S
@@ -468,17 +451,17 @@ end
 
 # ------ Type system for stuff we haven't figured out yet ------ 
 """Still under development"""
-struct ETF <: FinancialInstrument end
+struct ETF <: Asset end
 """Still under development"""
-struct InterestRateSwap <: FinancialInstrument end
+struct InterestRateSwap <: Asset end
 
 #------- Helpers
-function add_price_value(a_fin_inst::FinancialInstrument, a_new_price)
+function add_price_value(a_fin_inst::Asset , a_new_price)
     a_new_price >= 0 ? nothing :
     @warn("You are trying to add a negative number to a prices list")
     push!(a_fin_inst.widget.prices, a_new_price)
 end
 
-function get_prices(a_fin_inst::FinancialInstrument)
+function get_prices(a_fin_inst::Asset )
     a_fin_inst.widget.prices
 end

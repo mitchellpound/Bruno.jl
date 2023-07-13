@@ -23,7 +23,7 @@ See package documentation for more information.
 - `step`: the step number out of `n_timesteps` the `strategy_returns` is currently executing
 """
 function strategy(
-    fin_obj::FinancialInstrument,
+    fin_obj::Asset,
     pricing_model,
     strategy_mode::Type{<:Naked},
     holdings,
@@ -39,7 +39,7 @@ function strategy(
 end
 
 function strategy(
-    fin_obj::FinancialInstrument,
+    fin_obj::Asset,
     pricing_model,
     strategy_mode::Type{<:StaticDeltaHedge},
     holdings,
@@ -152,7 +152,7 @@ See package documentation for more information.
 - `step`: the step number out of `n_timesteps` the `strategy_returns` is currently executing
 """
 function strategy(
-    obj_array::Vector{<:FinancialInstrument},
+    obj_array::Vector{<:Asset},
     pricing_model,
     strategy_mode::Type{Naked},
     holdings,

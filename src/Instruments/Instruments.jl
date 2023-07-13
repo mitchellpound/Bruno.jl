@@ -4,7 +4,7 @@ using Statistics: var
 # export from widgets
 export Widget, Stock, Commodity, Bond
 # exports from financial_instruments
-export FinancialInstrument,
+export Asset,
     Option,
     CallOption,
     PutOption,
@@ -17,6 +17,7 @@ export FinancialInstrument,
 export get_volatility, add_price_value, get_prices # exporting this to make tests easier
 
 include("widgets.jl")
+include("assets.jl")
 include("financial_instruments.jl")
 
 end #module

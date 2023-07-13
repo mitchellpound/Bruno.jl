@@ -13,6 +13,7 @@ primitive type StaticDeltaHedge <: Hedging 8 end
 include("hedging.jl")
 
 include("strategy.jl")
+include("sim_env.jl")
 
 export Hedging, Naked, RebalanceDeltaHedge, StaticDeltaHedge
 export buy, sell

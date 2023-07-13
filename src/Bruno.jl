@@ -11,7 +11,7 @@ Instruments are then used in various Bruno functions.
 include("Instruments/Instruments.jl")
 
 using .Instruments
-export FinancialInstrument, Widget
+export Asset, Widget
 export Bond, Commodity, Stock
 export AmericanCallOption,
     AmericanPutOption, CallOption, EuroCallOption, EuroPutOption, Future, Option, PutOption
