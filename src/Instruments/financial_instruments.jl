@@ -18,13 +18,13 @@ abstract type Option <: Derivative end
 
 Abstract option subtype. Super type for all call options types.
 """
-abstract type CallOption{T<:Widget} <: Option end
+abstract type CallOption{T<:Asset} <: Option end
 """
     PutOption{T <: Widget} <: Option
 
 Abstract option subtype. Super type for all put options types.
 """
-abstract type PutOption{T<:Widget} <: Option end
+abstract type PutOption{T<:Asset} <: Option end
 
 # ----- Concrete types for Euro and American call options
 """
@@ -46,17 +46,27 @@ Base.@kwdef struct EuroCallOption{T<:Asset,S} <: CallOption{T}
         maturity,
         risk_free_rate,
         label
-    ) where {T<:Widget,S}
+    ) where {T<:Asset,S}
         strike_price >= 0 ? nothing : error("strike_price must be non-negative")
         maturity >= 0 ? nothing : error("maturity must be positive")
         new{T,S}(underlying, strike_price, maturity, risk_free_rate, label)
     end
-
-    function EuroCallOption(underlying, strike_price, maturity, risk_free_rate, label)
-        promote(strike_price, maturity, risk_free_rate)
-        new{typeof(underlying),typeof(strike_price)}(underlying, strike_price, maturity, risk_free_rate, label)
-    end
 end
+
+function EuroCallOption(underlying, strike_price = price(underlying), maturity = 1, risk_free_rate = .02, label = "")
+        strike_price, maturity, risk_free_rate = promote(strike_price, maturity, risk_free_rate)
+        EuroCallOption{typeof(underlying),typeof(strike_price)}(underlying, strike_price, maturity, risk_free_rate, label)
+end
+
+underlying(d::Derivative) = d.underlying
+
+
+
+
+
+
+
+
 
 # Outer constructors for passing only the widget
 """
@@ -83,37 +93,6 @@ kwargs = Dict(:widget=>stock, :strike_price=>10, :maturity=>1, :risk_free_rate=>
 EuroCallOption(;kwargs...)
 ```
 """
-# function EuroCallOption(
-#     widget,
-#     strike_price = widget.prices[end],
-#     maturity = 1,
-#     risk_free_rate = 0.02,
-#     label = "",
-#     values_library = Dict{String,Dict{String,Float64}}(),
-# )
-#     T = typeof(widget)
-#     strike_price, maturity, risk_free_rate = promote(strike_price, maturity, risk_free_rate)
-#     S = typeof(strike_price)
-#     D = valtype(valtype(values_library))
-
-#     return EuroCallOption{T,S,D}(widget, strike_price, maturity, risk_free_rate, label, values_library)
-# end
-
-# function EuroCallOption(;
-#     widget,
-#     strike_price = widget.prices[end],
-#     maturity = 1,
-#     risk_free_rate = 0.02,
-#     label = "",
-#     values_library = Dict{String,Dict{String,Float64}}()
-# )
-#     T = typeof(widget)
-#     strike_price, maturity, risk_free_rate = promote(strike_price, maturity, risk_free_rate)
-#     S = typeof(strike_price)
-#     D = valtype(valtype(values_library))
-
-#     return EuroCallOption{T,S,D}(widget, strike_price, maturity, risk_free_rate, label, values_library)
-# end
 
 """
     AmericanCallOption{T <: Widget} <: CallOption{T}

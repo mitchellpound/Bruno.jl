@@ -1,5 +1,6 @@
 using Distributions: Normal, cdf
 
+
 """
     price!(fin_obj<:CallOption, pricing_model::Type{<:Model};kwargs...)
 
@@ -251,24 +252,113 @@ price!(call, BlackScholes)
 ```
 """
 
-function price!(fin_obj::EuroCallOption{<:Widget}, pricing_model::Type{BlackScholes}; _...)
-    c1 = log(fin_obj.widget.prices[end] / fin_obj.strike_price)
-    a1 = fin_obj.widget.volatility * sqrt(fin_obj.maturity)
-    d1 =
-        (
-            c1 +
-            (fin_obj.risk_free_rate + (fin_obj.widget.volatility^2 / 2)) * fin_obj.maturity
-        ) / a1
-    d2 = d1 - a1
-    value =
-        fin_obj.widget.prices[end] * cdf(Normal(), d1) -
-        fin_obj.strike_price *
-        exp(-fin_obj.risk_free_rate * fin_obj.maturity) *
-        cdf(Normal(), d2)
 
-    fin_obj.values_library["BlackScholes"] = Dict("value" => value)
-    return value
+
+
+# ------------------------------------------------------------------
+price(p::StaticPrice) = p.price
+price(p::HistoricPrices) = p.prices[end]
+
+price(s::Stock) = price(s.prices)
+
+# math needed to price Euro calls/ puts with Black Scholes formula
+function price(::BlackScholes, option_type::Type{<:CallOption}, S, K, sigma, r, T, delta=0)
+    d1 =
+        (log(S / K) + (r + -delta + (sigma^2 / 2)) * T) / 
+        sigma * sqrt(sigma)
+    d2 = d1 - sigma * sqrt(T)
+    return S * exp(-delta * T) * cdf(Normal(), d1) - 
+        K * exp(-r * T) * cdf(Normal(), d2)
 end
+
+function price(::BlackScholes, option_type::Type{<:PutOption}, S, K, sigma, r, T, delta=0)
+    d1 =
+        (log(S / K) + (r + -delta + (sigma^2 / 2)) * T) / 
+        sigma * sqrt(sigma)
+    d2 = d1 - sigma * sqrt(T)
+    return -S * exp(-delta * T) * cdf(Normal(), -d1) +
+        K * exp(-r * T) * cdf(Normal(), -d2)
+end
+
+price(::BlackScholes, option_type::Type{<:PutOption}, S::AbstractArray, K, sigma, r, T, delta=0) = 
+    price(BlackScholes(), option_type, S[end], K, sigma, r, T, delta)
+price(::BlackScholes, option_type::Type{<:CallOption}, S::AbstractArray, K, sigma, r, T, delta=0) = 
+    price(BlackScholes(), option_type, S[end], K, sigma, r, T, delta)
+
+price(option::Option, pricing_model::Type{BlackScholes};_...) = 
+    price(
+        BlackScholes(), 
+        typeof(option), 
+        price(option.underlying),
+        option.strike_price,
+        get_volatility(option.underlying),
+        option.risk_free_rate, 
+        option.maturity
+    )
+
+
+
+
+price_history(option::Option, pricing_model, time_decay = true, window_size = 3) =
+    price_history(checkhistoric(option), option, pricing_model, time_decay , window_size)
+
+function price_history(::IsHistoric, 
+    option, 
+    pricing_model, 
+    time_decay = true,
+    window_size = 3;
+    kwargs...
+)
+    prices = price_vec(underlying(option))
+    n_prices = size(option |> underlying |> price_vec)[1] - window_size + 1
+    hist_prices = Array{typeof(option.strike_price)}(undef, n_prices)
+    sigma_vec = volatility_history(underlying(option), window_size)
+    if time_decay
+        maturity_vec = [max(0, option.maturity - i / timesteps_per_period(option)) for i in 1:size(h_prices)[1]]
+    else
+        maturity_vec = fill(option.maturity, n_prices)
+    end
+    for i in 1:n_prices
+        hist_prices[i] = price(
+            pricing_model, 
+            typeof(option), 
+            @view(prices[i:i + window_size - 1]),
+            option.strike_price, 
+            sigma_vec[i],
+            option.risk_free_rate, 
+            maturity_vec[i];
+            kwargs...
+        )
+    end
+    return hist_prices
+end
+    
+price_history(::NotHistoric, _...) = error("must have historic prices")
+# -------------------------------------------------------------------
+
+
+
+
+
+
+# function price!(fin_obj::EuroCallOption{<:Widget}, pricing_model::Type{BlackScholes}; _...)
+#     c1 = log(fin_obj.widget.prices[end] / fin_obj.strike_price)
+#     a1 = fin_obj.widget.volatility * sqrt(fin_obj.maturity)
+#     d1 =
+#         (
+#             c1 +
+#             (fin_obj.risk_free_rate + (fin_obj.widget.volatility^2 / 2)) * fin_obj.maturity
+#         ) / a1
+#     d2 = d1 - a1
+#     value =
+#         fin_obj.widget.prices[end] * cdf(Normal(), d1) -
+#         fin_obj.strike_price *
+#         exp(-fin_obj.risk_free_rate * fin_obj.maturity) *
+#         cdf(Normal(), d2)
+
+#     fin_obj.values_library["BlackScholes"] = Dict("value" => value)
+#     return value
+# end
 
 
 function price!(fin_obj::EuroPutOption{<:Widget}, pricing_model::Type{BlackScholes}; _...)

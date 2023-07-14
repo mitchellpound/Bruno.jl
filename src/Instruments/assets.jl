@@ -1,3 +1,5 @@
+export PriceType, StaticPrice, HistoricPrices, HistoricTrait, IsHistoric, NotHistoric, checkhistoric
+export price_vec, underlying, volatility_history, timesteps_per_period
 abstract type PriceType end
 
 struct StaticPrice{U,V} <: PriceType
@@ -6,7 +8,7 @@ struct StaticPrice{U,V} <: PriceType
 
     StaticPrice(price, volatility) = volatility < 0 ? 
         error("volatility must be non-negative") : 
-        new{typeof(price), typeof{volatility}}(price, volatility)
+        new{typeof(price), typeof(volatility)}(price, volatility)
 end
 
 struct HistoricPrices{T, TI} <: PriceType
@@ -15,14 +17,20 @@ struct HistoricPrices{T, TI} <: PriceType
 
     HistoricPrices(prices, timesteps_per_period) = timesteps_per_period < 0 ? 
         error("timesteps_per_period must be non-negative") : 
-        new{eltype(prices), typeof{timesteps_per_period}}(prices, timesteps_per_period)
+        new{eltype(prices), typeof(timesteps_per_period)}(prices, timesteps_per_period)
 end
 
 HistoricPrices(prices) = HistoricPrices(prices, size(prices)[1])
 PriceType(price, volatility) = StaticPrice(price, volatility)
-PriceType(prices::Vector, timesteps_per_period) = HistoricPrices(prices, timesteps_per_period)
-PriceType(prices::Vector) = HistoricPrices(prices)
-# need these to make kwargs work with the BaseAsset outer constructors
+PriceType(prices::AbstractArray, timesteps_per_period) = HistoricPrices(prices, timesteps_per_period)
+PriceType(prices::AbstractArray) = HistoricPrices(prices)
+
+price_vec(p::HistoricPrices) = p.prices
+price_vec(::StaticPrice) = error("StaticPrice type has no price vector")
+
+timesteps_per_period(p::PriceType) = p.timesteps_per_period
+
+# need these constructor methods to make kwargs work with the BaseAsset outer constructors
 function PriceType(price, volatility, _...) 
     volatility === nothing ? 
     error("must specify volatility") :
@@ -35,16 +43,19 @@ function PriceType(prices::Vector, _, time_steps_per_period, _...)
     HistoricPrices(prices, time_steps_per_period)
 end
 
-# abstract type HistoricTrait end
-# struct IsHistoric <: HistoricTrait end
-# struct NotHistoric <: HistoricTrait end
 
-# HistoricTrait(::StaticPrice) = NotHistoric()
-# HistoricTrait(::HistoricPrices) = IsHistoric()
+abstract type HistoricTrait end
+struct IsHistoric <: HistoricTrait end
+struct NotHistoric <: HistoricTrait end
+
+checkhistoric(::StaticPrice) = NotHistoric()
+checkhistoric(::HistoricPrices) = IsHistoric()
+checkhistoric(s::Stock) = checkhistoric(s.prices)
+checkhistoric(d::Derivative) = checkhistoric(d.underlying)
 
 # with these types prices can now be extended. Eventually we can add a TimeArray price vector
 
-function get_volatility(prices::Vector, timesteps_per_period)
+function get_volatility(prices, timesteps_per_period)
     length(prices) > 2 ? nothing :
     # need at least three values so std can work
     return error("Must have at least three values to calculate the volatility")  
@@ -73,7 +84,7 @@ struct Stock <: BaseAsset
 end
 
 Stock(price, volatility, name = "") = Stock(StaticPrice(price, volatility), name)
-Stock(prices::Vector, timesteps_per_period = size(prices)[1], name = "") = Stock(HistoricPrices(prices, timesteps_per_period), name)
+Stock(prices::AbstractArray, timesteps_per_period = size(prices)[1], name = "") = Stock(HistoricPrices(prices, timesteps_per_period), name)
 
 function Stock(;prices, volatility = nothing, timesteps_per_period = nothing, name = "") 
     if isa(prices, PricesType)
@@ -81,6 +92,28 @@ function Stock(;prices, volatility = nothing, timesteps_per_period = nothing, na
     end
     return Stock(PriceType(prices, volatility, timesteps_per_period), name)
 end
+
+price_vec(s::Stock) = price_vec(s.prices)
+timesteps_per_period(s::Stock) = timesteps_per_period(s.prices)
+get_volatility(s::Stock) = get_volatility(s.prices)
+
+volatility_history(::StaticPrice, _...) = error("must use HistoricPrices")
+function volatility_history(p::HistoricPrices, window_size = 3)
+    h_volatil = zeros(eltype(p.prices), size(p.prices)[1] - window_size + 1)
+    for i in 1:size(p.prices)[1] - window_size + 1
+        h_volatil[i] = get_volatility(@view(p.prices[i:i+window_size-1]),p.timesteps_per_period)
+    end
+    return h_volatil
+end
+
+volatility_history(s::Stock, window_size) = volatility_history(s.prices, window_size)
+timesteps_per_period(d::Derivative) = timesteps_per_period(d.underlying)
+
+
+
+
+
+
 
 """
     Stock(prices, name, timesteps_per_period, volatility)
