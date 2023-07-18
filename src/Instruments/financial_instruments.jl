@@ -59,7 +59,8 @@ function EuroCallOption(underlying, strike_price = price(underlying), maturity =
 end
 
 underlying(d::Derivative) = d.underlying
-
+checkhistoric(d::Derivative) = checkhistoric(d.underlying)
+timesteps_per_period(d::Derivative) = timesteps_per_period(d.underlying)
 
 
 

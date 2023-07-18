@@ -63,5 +63,5 @@ export find_correlation_coeff, strategy_returns, strategy
 
 # new ones... just for now...
 export PriceType, StaticPrice, HistoricPrices, HistoricTrait, IsHistoric, NotHistoric, checkhistoric
-export price_vec, underlying, price_history, volatility_history, timesteps_per_period
+export price_vec, underlying, price_history, volatility_history, timesteps_per_period, BaseAsset, Derivative
 end # end Bruno module 

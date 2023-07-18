@@ -4,6 +4,7 @@ authors = ["Mitchell Pound <mitchell.pound@usu.edu>", "Spencer Clemens <soclemen
 version = "0.1.2"
 
 [deps]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 EnumX = "4e289a0a-7415-4d19-859d-a7e5c4648b56"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"

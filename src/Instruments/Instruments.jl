@@ -20,4 +20,7 @@ include("widgets.jl")
 include("assets.jl")
 include("financial_instruments.jl")
 
+# exporting here since still working on it...
+export Derivative
+
 end #module

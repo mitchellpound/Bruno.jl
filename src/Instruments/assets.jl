@@ -1,5 +1,5 @@
 export PriceType, StaticPrice, HistoricPrices, HistoricTrait, IsHistoric, NotHistoric, checkhistoric
-export price_vec, underlying, volatility_history, timesteps_per_period
+export price_vec, underlying, volatility_history, timesteps_per_period, BaseAsset
 abstract type PriceType end
 
 struct StaticPrice{U,V} <: PriceType
@@ -50,8 +50,6 @@ struct NotHistoric <: HistoricTrait end
 
 checkhistoric(::StaticPrice) = NotHistoric()
 checkhistoric(::HistoricPrices) = IsHistoric()
-checkhistoric(s::Stock) = checkhistoric(s.prices)
-checkhistoric(d::Derivative) = checkhistoric(d.underlying)
 
 # with these types prices can now be extended. Eventually we can add a TimeArray price vector
 
@@ -96,18 +94,20 @@ end
 price_vec(s::Stock) = price_vec(s.prices)
 timesteps_per_period(s::Stock) = timesteps_per_period(s.prices)
 get_volatility(s::Stock) = get_volatility(s.prices)
+checkhistoric(s::Stock) = checkhistoric(s.prices)
 
-volatility_history(::StaticPrice, _...) = error("must use HistoricPrices")
-function volatility_history(p::HistoricPrices, window_size = 3)
-    h_volatil = zeros(eltype(p.prices), size(p.prices)[1] - window_size + 1)
-    for i in 1:size(p.prices)[1] - window_size + 1
-        h_volatil[i] = get_volatility(@view(p.prices[i:i+window_size-1]),p.timesteps_per_period)
+function volatility_history(prices::AbstractArray, timesteps_per_period, window_size = 3)
+    h_volatil = zeros(eltype(prices), size(prices)[1] - window_size + 1) # TODO change to undef fill
+    for i in 1:size(prices)[1] - window_size + 1
+        h_volatil[i] = get_volatility(@view(prices[i:i+window_size-1]),timesteps_per_period)
     end
     return h_volatil
 end
 
+volatility_history(::StaticPrice, _...) = error("must use HistoricPrices")
+volatility_history(p::HistoricPrices, window_size = 3) = volatility_history(p.prices, p.timesteps_per_period, window_size)
+
 volatility_history(s::Stock, window_size) = volatility_history(s.prices, window_size)
-timesteps_per_period(d::Derivative) = timesteps_per_period(d.underlying)
 
 
 
