@@ -1,3 +1,5 @@
+export SimulationEnvironment, add_asset, add_variable, add_interest_rate
+export SimVariable, get_type
 using DataFrames
 struct SimVariable end
 # struct Cash <: Asset end
@@ -7,22 +9,25 @@ Base.@kwdef struct SimulationEnvironment
     timesteps_per_period::Int32
     window_size::Int32
     data::DataFrame = DataFrame()
-    coltypes::Vector{DataType} = DataType[]
+    coltypes::Vector = []
     starting_holdings::Dict{String, Float64} = Dict()
 end
 
-SimulationEnvironment(
+function SimulationEnvironment(
     N, 
     timesteps_per_period, 
     window_size, 
     starting_cash, 
-) = SimulationEnvironment(;
+)   env = SimulationEnvironment(;
     N=N, 
     timesteps_per_period=timesteps_per_period, 
     window_size = window_size, 
-    starting_holdings = Dict("cash" => starting_cash)
-)
+    starting_holdings = Dict("cash" => starting_cash))
+    add_interest_rate(env, zeros(Float64, N+window_size))
+    return env
+end
 
+# TODO: FIX!!
 Base.firstindex(env::SimulationEnvironment) = 1 - env.window_size
 Base.lastindex(env::SimulationEnvironment) = env.N
 
@@ -42,6 +47,8 @@ function Base.getindex(env::SimulationEnvironment, vec::AbstractArray{<:Abstract
 
     env.data[current_time + env.window_size, vec]
 end
+
+# TODO: FIX!!
 Base.getindex(env::SimulationEnvironment, string::AbstractString, i::Int) = env[[string], i]
 
 function Base.getindex(env::SimulationEnvironment, i::UnitRange{<:Int})
@@ -84,6 +91,17 @@ Base.setindex!(env::SimulationEnvironment, variable, string) = add_variable(env,
 get_variables(env::SimulationEnvironment) = env[SimVariable]
 get_variable_names(env::SimulationEnvironment) = names(env[SimVariable])
 
+function get_type(env::SimulationEnvironment, name)
+    index = findfirst(x -> x == name, names(env.data))
+    if index === nothing
+        throw(KeyError(name))
+    end
+    env.coltypes[index]
+end
+
+
+
+
 # function Base.show(io::IO, e::SimulationEnvironment{T}) where{T}
 #     println("SimulationEnvironment{$T}")
 #     println("  Assets")
@@ -96,6 +114,8 @@ get_variable_names(env::SimulationEnvironment) = names(env[SimVariable])
 #     end
 # end
 
+# lend interest is interest rate you get on your savings
+# borrow interest is the rate you pay on negative balances
 function add_interest_rate(env::SimulationEnvironment, lend_interest, borrow_interest = lend_interest )
     add_variable(env, lend_interest, "lend_interest")
     add_variable(env, borrow_interest, "borrow_interest")
@@ -103,11 +123,11 @@ end
 
 function add_variable(env::SimulationEnvironment, value, name)
     env.data[!, name] = fill(value, env.N+env.window_size)
-    push!(env.coltypes, SimVAriable)
+    push!(env.coltypes, SimVariable)
 end
 
 # assumes that the last entry is the furthest in the future (last of the simulation)
-function add_variable(env::SimulationEnvironment, var_vec::Vector, name)
+function add_variable(env::SimulationEnvironment, var_vec::AbstractArray, name)
     @assert length(var_vec)>=env.N "not enough variable entries for simulation"
     length(var_vec) <= env.N + env.window_size ? nothing : var_vec = var_vec[end-env.N-env.window_size+1:end]
 
@@ -159,53 +179,115 @@ function add_asset(
     env.starting_holdings[name] = starting_holdings
 end
 
+function add_asset(
+    env::SimulationEnvironment,
+    asset_type::Type{<:Derivative}, 
+    pricing_model, 
+    underlying_name, 
+    strike_price, 
+    maturity,
+    name, 
+    starting_holdings = 0
+)
+    underlying = env[underlying_name]
+    hist_volatil = env["$(underlying_name)_volatility"]
+    risk_free = env["lend_interest"]
+    prices = []
+    for i in 1:env.N+1
+        push!(prices, time_lag_price(
+            pricing_model, 
+            asset_type, 
+            underlying[env.window_size-1+i], 
+            strike_price, 
+            hist_volatil[env.window_size-1+i], 
+            risk_free[env.window_size-1+i], 
+            maturity, 
+            env.N, 
+            env.timesteps_per_period)
+        )
+    end
+    env.data[!, name] = vcat(fill(missing, env.window_size-1), prices)
+    push!(env.coltypes, asset_type)
+
+    #TODO figure out holdings!!!!
+end
+
 function test_strategy(strategy::Function, env)
     # build out holdings dataframe with starting holdings
     ts_holdings = DataFrame()
     for key in keys(env.starting_holdings)
-        ts_holdings[!, key] = vcat([env.starting_holdings[key]], fill(missing, env.N - 1))    
+        ts_holdings[!, key] = typeof(env.starting_holdings[key])[]
     end
+    push!(ts_holdings, env.starting_holdings)
+
+    # TODO: add value marker to ts_holdings
 
     for step in 1:(env.N)
+
         # run strategy for each timestep
-        strategy(ts_holdings, step, env) 
-
+        strategy(env, step, ts_holdings)
         
-        
-
+        # copy prices for next round to change
+        push!(ts_holdings, ts_holdings[end, :])
 
         # pay/ get interest for time period
         if ts_holdings[step, "cash"] >= 0
-            ts_holdings[step+1, "cash"] = exp(env[hold_return_int_rate] / env.timesteps_per_period)
+            ts_holdings[step+1, "cash"] *= exp(env.data[step, "lend_interest"] / env.timesteps_per_period)
         else
-            holdings["cash"] *= exp(pay_int_rate / timesteps_per_period)
+            ts_holdings[step+1, "cash"] *= exp(env.data[step, "borrow_interest"] / timesteps_per_period)
         end
 
 
 
     end
 
-
+    return ts_holdings
     
 end
 
-
-
-macro environment_setup(strings)
-    symbols = []
-    for str in strings
-        sym = Symbol(str)
-        push!(symbols, sym)
-        esc(:(($sym,) = env.data[$str]))
+function buy(name, number, env, step, ts_holdings)
+    # check for nonsensical buying
+    if number < 0
+        @warn(raw"unable to buy negative amounts. Use sell() instead")
+        return nothing
     end
+ 
+    index = findfirst(x -> x == name, names(env.data))
+    type = env.coltypes[index]
+    buy(type, name, number, env, step, ts_holdings)
+end
+
+function buy(type::Type{<:BaseAsset}, name, number, env, step, ts_holdings)
+    ts_holdings[step+1, "cash"] -= env.data[step, name] * number 
+    ts_holdings[step+1, name] += number
+end
+
+function sell(name, number, env, step, ts_holdings)
+    # check for nonsensical buying
+    if number < 0
+        @warn(raw"unable to sell negative amounts. Use buy() instead")
+        return nothing
+    end
+ 
+    index = findfirst(x -> x == name, names(env.data))
+    type = env.coltypes[index]
+    sell(type, name, number, env, step, ts_holdings)
+end
+
+function sell(type::Type{<:BaseAsset},name, number, env, step, ts_holdings)
+    ts_holdings[step+1, "cash"] += env.data[step, name] * number 
+    ts_holdings[step+1, name] -= number
+end
+
+macro environment_setup(env, step, ts_holdings, strings)
     quote
-        function buy(name::String, number::Int)
-            # Code here about how to get things into the buy
-            # holdings[name] += number
-        end
-        function sell(name::String, number::Int)
-            # Code here about how to sell things
-        end
-        $(symbols...)
+        buy(name::AbstractString, number) = buy(name, number, $env, $step, $ts_holdings)
+        sell(name::AbstractString, number) = sell(name, number, $env, $step, $ts_holdings)
+    end
+end
+
+function assign_variables(env::SimulationEnvironment, step, names)
+    for name in names
+        @eval $(Symbol(name)) = env[begin:step, $name]
     end
 end

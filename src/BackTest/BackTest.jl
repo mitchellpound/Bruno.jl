@@ -18,5 +18,6 @@ include("sim_env.jl")
 export Hedging, Naked, RebalanceDeltaHedge, StaticDeltaHedge
 export buy, sell
 export find_correlation_coeff, strategy_returns, strategy
+export @environment_setup
 
 end # module 

@@ -1,3 +1,4 @@
+export time_lag_price
 using Distributions: Normal, cdf
 
 
@@ -265,7 +266,7 @@ price(s::Stock) = price(s.prices)
 function price(::BlackScholes, option_type::Type{<:CallOption}, S, K, sigma, r, T, delta=0)
     d1 =
         (log(S / K) + (r + -delta + (sigma^2 / 2)) * T) / 
-        sigma * sqrt(sigma)
+        (sigma * sqrt(T))
     d2 = d1 - sigma * sqrt(T)
     return S * exp(-delta * T) * cdf(Normal(), d1) - 
         K * exp(-r * T) * cdf(Normal(), d2)
@@ -274,7 +275,7 @@ end
 function price(::BlackScholes, option_type::Type{<:PutOption}, S, K, sigma, r, T, delta=0)
     d1 =
         (log(S / K) + (r + -delta + (sigma^2 / 2)) * T) / 
-        sigma * sqrt(sigma)
+        (sigma * sqrt(T))
     d2 = d1 - sigma * sqrt(T)
     return -S * exp(-delta * T) * cdf(Normal(), -d1) +
         K * exp(-r * T) * cdf(Normal(), -d2)
@@ -303,7 +304,7 @@ price_history(option::Option, pricing_model, time_decay = true, window_size = 3)
     price_history(checkhistoric(option), option, pricing_model, time_decay , window_size)
 
 function price_history(::IsHistoric, 
-    option, 
+    option::Option, 
     pricing_model, 
     time_decay = true,
     window_size = 3;
@@ -332,7 +333,69 @@ function price_history(::IsHistoric,
     end
     return hist_prices
 end
+
+# just the math... without the struct
+function price_history(::IsHistoric, 
+    pricing_model::Model, 
+    option_type,
+    prices, 
+    strike_price,
+    risk_free_rate_vec,
+    maturity,
+    timesteps_per_period,
+    time_decay = true,
+    window_size = 3;
+    kwargs...
+)
+    n_prices = lenghth(prices) - window_size + 1
+    option_prices = Array{typeof(strike_price)}(undef, n_prices)
+    sigma_vec = volatility_history(prices, timesteps_per_period, window_size)
+    if time_decay
+        maturity_vec = [max(0, maturity - i / timesteps_per_period) for i in 1:n_prices]
+    else
+        maturity_vec = fill(maturity, n_prices)
+    end
+    for i in 1:n_prices
+        option_prices[i] = price(
+            pricing_model, 
+            option_type, 
+            @view(prices[i:i + window_size - 1]),
+            strike_price, 
+            sigma_vec[i],
+            risk_free_rate_vec[i], 
+            maturity_vec[i];
+            kwargs...
+        )
+    end
+    return option_prices
+end
     
+function time_lag_price(
+    pricing_model::Model, 
+    option_type::Type{<:Option}, 
+    underlying_price, 
+    strike_price, 
+    sigma, 
+    r,
+    T, 
+    n_steps, 
+    timesteps_per_period, 
+    args...
+)
+    # option_prices = Array{typeof(price)}(undef, n_steps)
+    option_prices = zeros(Float64, n_steps)
+    maturity_vec = [max(0, T - (i / timesteps_per_period)) for i in 0:n_steps-1]
+    print(maturity_vec)
+    for i in 1:n_steps
+        if maturity_vec[i] == 0
+            option_prices[i] = 0
+        else
+            option_prices[i] = price(pricing_model, option_type, underlying_price, strike_price, sigma, r, maturity_vec[i], args...)
+        end
+    end
+    return option_prices
+end
+
 price_history(::NotHistoric, _...) = error("must have historic prices")
 # -------------------------------------------------------------------
 
