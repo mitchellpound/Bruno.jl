@@ -2,7 +2,7 @@
 
 ## Base Assets (Widgets)
 
-### [Creating Widgets](@id creating_widget_manual)
+### [Creating Widgets](@id creating_asset_manual)
 Base assets (`Widgets`) are the building blocks for the rest of the Bruno package. Base assets can be used as stand alone structs or as an underlying asset in a `FinancialInstrument` like an `AmericanCallOption`.
 
 Current `Widget` types Bruno supports are [`Stock`](@ref),  [`Commodity`](@ref) and [`Bond`](@ref). 

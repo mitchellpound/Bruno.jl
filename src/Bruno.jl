@@ -4,7 +4,7 @@ module Bruno
 Instruments.jl contains the exports for the different Bruno Structs.
 At the core of the struct hierarchy lives the "Widget" abstract type.
 From there concrete structs are made like Stocks or Commodities. These
-widgets are then put into a Financial Instrument. These Financial 
+assets are then put into a Financial Instrument. These Financial 
 Instruments are then used in various Bruno functions.
 """
 
@@ -22,7 +22,7 @@ export get_volatility, add_price_value
 """
 DataGeneration.jl is where the data generation functions live. Examples
 include the bootstrap and factory functions. DataGeneration uses either
-a widget or Financial Instrument to generate new prices.
+a asset or Financial Instrument to generate new prices.
 """
 
 include("DataGeneration/DataGeneration.jl")

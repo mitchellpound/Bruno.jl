@@ -319,13 +319,13 @@ price!(call, BlackScholes)
 # end
 
 
-function price!(fin_obj::EuroPutOption{<:Widget}, pricing_model::Type{BlackScholes}; _...)
-    c1 = log(fin_obj.widget.prices[end] / fin_obj.strike_price)
-    a1 = fin_obj.widget.volatility * sqrt(fin_obj.maturity)
+function price!(fin_obj::EuroPutOption{<:Asset}, pricing_model::Type{BlackScholes}; _...)
+    c1 = log(fin_obj.asset.prices[end] / fin_obj.strike_price)
+    a1 = fin_obj.asset.volatility * sqrt(fin_obj.maturity)
     d1 =
         (
             c1 +
-            (fin_obj.risk_free_rate + (fin_obj.widget.volatility^2 / 2)) * fin_obj.maturity
+            (fin_obj.risk_free_rate + (fin_obj.asset.volatility^2 / 2)) * fin_obj.maturity
         ) / a1
     d2 = d1 - a1
     value =

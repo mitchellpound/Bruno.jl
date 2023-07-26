@@ -19,27 +19,24 @@ widget = Stock(prices)
 list_of_widgets = factory(widget, Stationary, 2)
 ```
 """
-function factory(widget::Widget, bootstrap_method, nWidgets)
+function factory(widget::BaseAsset, bootstrap_method, nWidgets)
     fields = field_exclude(widget)
     # calculating the returns
     # TODO: check if time series Stationary 
+    widget_prices = price_vec(widget.prices) 
     returns = [
-        (widget.prices[i+1] - widget.prices[i]) / widget.prices[i] for
-        i = 1:(size(widget.prices)[1]-1)
+        (widget_prices[i+1] - widget_prices[i]) / widget_prices[i] for
+        i = 1:(size(widget_prices)[1]-1)
     ]
     # bootstrap the returns
-    input = BootstrapInput{bootstrap_method}(;
-        input_data = returns,
-        n = length(returns),
-        block_size = opt_block_length(widget.prices, bootstrap_method),
-    )
+    input = BootstrapInput{bootstrap_method}(returns, length(returns), opt_block_length(widget_prices, bootstrap_method))
     bs_data = makedata(input, nWidgets)
     # Create a vector of widgets
-    widget_ar = Vector{Widget}()
+    widget_ar = Vector{BaseAsset}()
     kwargs = Dict(fields .=> getfield.(Ref(widget), fields))
     for column = 1:nWidgets
         # take the returns back to prices
-        prices = [widget.prices[1]]
+        prices = [widget_prices[1]]
         for i = 1:length(returns)
             val = prices[end] * (bs_data[i, column] + 1)
             push!(prices, val)
@@ -56,7 +53,7 @@ function factory(
     nInstruments,
 )
     fields = field_exclude(fin_instrument)
-    widget_ar = factory(fin_instrument.widget, bootstrap_method, nInstruments)
+    widget_ar = factory(fin_instrument.underlying, bootstrap_method, nInstruments)
 
     # array for all the instruments 
     instr_ar = Vector{Asset}()
@@ -71,7 +68,7 @@ end
 # from the factory and leave each struct to figure out those feilds in
 # their own constructor
 
-function field_exclude(widget::Widget)
+function field_exclude(widget::BaseAsset)
     [p for p in fieldnames(typeof(widget)) if p ∉ [:prices]]
 end
 

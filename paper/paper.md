@@ -68,7 +68,7 @@ function Bruno.strategy(fin_obj,
         # buy one FinancialInstrument every 5 days with no transaction costs
         buy(fin_obj, 1, holdings, pricing_model, 0) 
         # buy one Stock every 5 days
-        buy(fin_obj.widget, 1, holdings, pricing_model, 0) 
+        buy(fin_obj.underlying, 1, holdings, pricing_model, 0) 
     end
     return holdings
 end

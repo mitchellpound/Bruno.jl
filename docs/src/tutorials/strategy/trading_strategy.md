@@ -40,7 +40,7 @@ function Bruno.strategy(fin_obj,
         # buy one FinancialInstrument every 5 days with no transaction costs
         buy(fin_obj, 1, holdings, pricing_model, 0) 
         # buy one Stock every 5 days
-        buy(fin_obj.widget, 1, holdings, pricing_model, 0) 
+        buy(fin_obj.asset, 1, holdings, pricing_model, 0) 
     end
 
     return holdings
@@ -51,7 +51,7 @@ end
 ```
 
 ## Running the `strategy` Using `strategy_returns`
-All financial instruments and historic and future prices for the underlying widgets must be initialized prior to running the trading strategy. 
+All financial instruments and historic and future prices for the underlying assets must be initialized prior to running the trading strategy. 
 
 ```@meta
 DocTestSetup = quote

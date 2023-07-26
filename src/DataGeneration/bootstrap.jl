@@ -28,32 +28,19 @@ kwargs = Dict(:input_data=>input_data, :n=>20, :block_size=>4);
 input2 = BootstrapInput{MovingBlock}(;kwargs...)
 ```
 """
-struct BootstrapInput{T,TI,TF,TR} <: DataGenInput
-    input_data::Array{TR} # array of data to be resampled
-    n::TI # desired size of resampled data
-    block_size::TF #desired average block size (will add more to this later)
+Base.@kwdef struct BootstrapInput{T<:TSBootMethod,TI,TF,TR} <: DataGenInput
+    #=
+    T = Boot Method
+    TI = Type used for size (integer like)
+    TF = block size type (float like)
+    TR = element type of the input_array
+    =#
+    input_data::Array{TR}  # array of data to be resampled
+    n::TI  # desired size of resampled data
+    block_size::TF = opt_block_length(input_data, T)  # desired average block size (will add more to this later)
 
-    # constructor for kwargs
-    function BootstrapInput{T,TI,TF,TR}(;
-        input_data,
-        n = 100,
-        block_size = opt_block_length(input_data, T),
-    ) where {T,TI,TF,TR}
-        # check input_data is more than a single data point 
-        if length(input_data) < 2
-            error("input_data must have at least 2 elements")
-        end
-        # check block_size is smaller than input_data 
-        if length(input_data) < block_size
-            error("block_length must be smaller than the size of the input_data")
-        end
-        if n < 1
-            error("n (size of resampled data) must be greater than 0")
-        end
-        new{T,TI,TF,TR}(input_data, n, block_size)
-    end
     # constructor for inputing args in exact correct order
-    function BootstrapInput{T,TI,TF,TR}(input_data, n, block_size) where {T,TI,TF,TR}
+    function BootstrapInput{T,TI,TF,TR}(input_data, n, block_size) where {T<:TSBootMethod,TI,TF,TR}
         if length(input_data) < 2
             error("input_data must have at least 2 elements")
         end
@@ -71,7 +58,7 @@ end
 # outer constructor for infering types used
 function BootstrapInput(
     input_data,
-    bootstrap_method;
+    bootstrap_method::Type{<:TSBootMethod};
     n = 100,
     block_size = opt_block_length(input_data, bootstrap_method)
 ) 
@@ -80,6 +67,9 @@ function BootstrapInput(
     TF = typeof(block_size)
     return BootstrapInput{bootstrap_method,TI,TF,TR}(input_data, n, block_size)
 end
+
+@inline BootstrapInput{bootstrap_method}(input_data, n, block_size) where {bootstrap_method <: Type{<:TSBootMethod}}= 
+    BootstrapInput(input_data, bootstrap_method; n=n, block_size=block_size)
 
 function makedata(param::BootstrapInput{Stationary}, nSimulation = 1)
     # check for block_size > 1 so geometric distro doesn't blow up

@@ -1,7 +1,7 @@
 # Pricing Models
 Pricing models used with the [`price!`](@ref) function all have a corresponding `Model` subtype. Current pricing models supported are `BlackScholes`, `BinomialTree`, `MonteCarlo{<:MonteCarloModel}`, and `StockPrice`.
 
-## [Pricing Base Assets (`Widgets`)](@id pricing_widgets)
+## [Pricing Base Assets (`Widgets`)](@id pricing_assets)
 All `Widget` subtypes can be priced with any pricing model subtype of `Model`. [`price!`](@ref) returns the last price in the array of the `prices` field. To make code more explicit, the `StockPrice` type may be used which does not have a method for any `Financial Instrument`.  
 
 ## [Pricing FinancialInstruments](@id pricing_fin_inst)
@@ -22,7 +22,7 @@ pricing a three month European call option
 stock = Stock(50.0; volatility=.32)
 
 # creating a 3 month European call option with a $55 strike price 
-call = EuroCallOption(;widget=stock, strike_price=55, maturity=.25, risk_free_rate=.02)
+call = EuroCallOption(;asset=stock, strike_price=55, maturity=.25, risk_free_rate=.02)
 
 call_price = price!(call, BlackScholes)
 call_price == call.values_library["BlackScholes"]["value"]
@@ -51,7 +51,7 @@ pricing a three month American call option.
 stock = Stock(50.0; volatility=.32)
 
 # creating a 3 month American call option with a $55 strike price 
-call = AmericanCallOption(;widget=stock, strike_price=55, maturity=.25, risk_free_rate=.02)
+call = AmericanCallOption(;asset=stock, strike_price=55, maturity=.25, risk_free_rate=.02)
 
 # calculating the options price using 5 time steps in the tree
 call_price = price!(call, BinomialTree; tree_depth=5)

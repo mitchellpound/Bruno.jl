@@ -472,7 +472,7 @@ function buy(
 end
 
 function buy(
-    widget_obj::Widget, 
+    widget_obj::Asset, 
     number,
     holdings, 
     pricing_model, 
@@ -543,7 +543,7 @@ function sell(
 end
 
 function sell(
-    widget_obj::Widget, 
+    widget_obj::Asset, 
     number,
     holdings, 
     pricing_model, 
@@ -670,7 +670,7 @@ function update_obj(
 end
 
 function update_obj(
-    obj::Widget, 
+    obj::Asset, 
     strategy_type, 
     pricing_model, 
     holdings, 
@@ -793,9 +793,9 @@ function find_correlation_coeff(
 end
 
 function find_correlation_coeff(obj_a::Union{Stock,Commodity}, obj_b::Option)
-    find_correlation_coeff(obj_a, obj_b.widget)
+    find_correlation_coeff(obj_a, obj_b.underlying)
 end
 
 function find_correlation_coeff(obj_a::Option, obj_b::Union{Stock,Commodity})
-    find_correlation_coeff(obj_b, obj_a.widget)
+    find_correlation_coeff(obj_b, obj_a.underlying)
 end

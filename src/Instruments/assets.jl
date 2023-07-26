@@ -186,11 +186,11 @@ end
 # TODO: Figure out Bond logic/ clean up constructors
 # ---------- Bonds -----------------
 """ 
-    Bond <: Widget
+    Bond <: Asset
 
-Widget subtype. Used as a base or root asset for FinancialInstrument.
+Asset subtype. Used as a base or root asset for FinancialInstrument.
 """
-struct Bond{T,TF} <: Widget
+struct Bond{T,TF} <: Asset
     prices::Array{T}
     name::String
     time_mat::TF

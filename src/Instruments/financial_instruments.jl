@@ -1,7 +1,7 @@
 # financial instruments that can be passed to simulate. They house underlying widgets as part
 # of the instrument. Ex: Stock call options house an underlying stock
 """FinancialInstrument is the supertype for any instrument that uses a base asset
-(widget) in its definition (like a financial derivative)."""
+(Asset) in its definition (like a financial derivative)."""
 abstract type Derivative <: Asset end
 
 underlying(d::Derivative) = d.underlying
@@ -18,13 +18,13 @@ abstract type Option <: Derivative end
 
 # ----- Abstract type for all call and put options -----
 """
-    CallOption{T <: Widget} <: Option
+    CallOption{T <: Asset} <: Option
 
 Abstract option subtype. Super type for all call options types.
 """
 abstract type CallOption{T<:Asset} <: Option end
 """
-    PutOption{T <: Widget} <: Option
+    PutOption{T <: Asset} <: Option
 
 Abstract option subtype. Super type for all put options types.
 """
@@ -34,12 +34,12 @@ abstract type PutOption{T<:Asset} <: Option end
 # TODO: Change docs 
 """
     eurocalloption(;kwargs...)
-    eurocalloption(widget, strike_price, maturity, risk_free_rate, values_library)
+    eurocalloption(Asset, strike_price, maturity, risk_free_rate, values_library)
 
-construct a eurocalloption with underlying asset of type `widget`
+construct a eurocalloption with underlying asset of type `Asset`
 
 ## arguments
-- `widget`: underlying asset
+- `Asset`: underlying asset
 - `strike_price`: contracted price to buy underlying asset at maturity
 - `maturity`: time to maturity of the option with respect to implicit time period. default 1.
 - `risk_free_rate`: market risk free interest rate. default is .02.
@@ -52,7 +52,7 @@ stock = stock([1,2,4,3,5,3]);
 
 eurocalloption(stock, 10)
 
-kwargs = dict(:widget=>stock, :strike_price=>10, :maturity=>1, :risk_free_rate=>.02);
+kwargs = dict(:underlying=>stock, :strike_price=>10, :maturity=>1, :risk_free_rate=>.02);
 eurocalloption(;kwargs...)
 ```
 """
@@ -78,13 +78,13 @@ Base.@kwdef struct EuroCallOption{T<:Asset,S} <: CallOption{T}
 end
 
 """
-    AmericanCallOption(widget, strike_price; kwargs...)
+    AmericanCallOption(underlying, strike_price; kwargs...)
     AmericanCallOption(;kwargs...)
 
-Construct a AmericanCallOption with underlying asset of type `Widget`
+Construct a AmericanCallOption with underlying asset of type `Asset`
 
 ## Arguments
-- `widget`: The underlying asset
+- `underlying`: The underlying asset
 - `strike_price`: Contracted price to buy underlying asset at maturity.
 - `maturity`: time to maturity of the option with respect to implicit time period. Default 1.
 - `risk_free_rate`: market risk free interest rate. Default is .02.
@@ -97,7 +97,7 @@ stock = Stock([1,2,4,3,5,3]);
 
 AmericanCallOption(stock, 10)
 
-kwargs= Dict(:widget=>stock, :strike_price=>10, :maturity=>1, :risk_free_rate=>.02);
+kwargs= Dict(:underlying=>stock, :strike_price=>10, :maturity=>1, :risk_free_rate=>.02);
 AmericanCallOption(;kwargs...)
 ```
 """
@@ -203,11 +203,11 @@ end
 # TODO: Fix/ implement these more
 # ------ Type system for futures: subtype of FinancialInstrument ------
 """
-    Future{T <: Widget} <: FinancialInstrument
+    Future{T <: Asset} <: FinancialInstrument
 
 Future contract with underlying asset 'T'.
 """
-struct Future{T<:Widget,S,D} <: Derivative
+struct Future{T<:Asset,S,D} <: Derivative
     underlying::T
     strike_price::S
     risk_free_rate::S
