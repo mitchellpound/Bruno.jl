@@ -10,8 +10,8 @@ Base.@kwdef struct SimulationEnvironment
     timesteps_per_period::Int32
     window_size::Int32
     data::DataFrame = DataFrame()
-    coltypes::Vector = []
-    #typecols::Dict
+    coltypes:: Dict{String, Any} = Dict()
+    typecols::Dict{Any, String} = Dict()
     starting_holdings::Dict{String, Float64} = Dict()
 end
 

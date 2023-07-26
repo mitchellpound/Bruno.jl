@@ -17,9 +17,9 @@ using Random
     The Value of this call option should be 7.074
     """
     # Create needed values
-    a_stock = Stock(41.0; volatility = 0.3)  # create a widget
-    a_fin_inst = EuroCallOption(;widget = a_stock, strike_price = 40, risk_free_rate = 0.08) # create an Option
-    price!(a_fin_inst, BinomialTree)  # add the binomial Option value to the options values
+    a_stock = Stock(41.0, 0.3)  # create a widget
+    a_fin_inst = EuroCallOption(;underlying = a_stock, strike_price = 40, risk_free_rate = 0.08) # create an Option
+    price(a_fin_inst, BinomialTree)  # add the binomial Option value to the options values
 
     # check that a value was added to a_fin_inst
     value = a_fin_inst.values_library["BinomialTree"]["value"]
@@ -72,7 +72,7 @@ end
     The Value of this call option should be 7.074
     """
     # Create needed values
-    a_stock = Stock(41.0; volatility = 0.3)  # create a widget
+    a_stock = Stock(41.0, 0.3)  # create a widget
     a_fin_inst = AmericanPutOption(;widget = a_stock, strike_price = 40, risk_free_rate = 0.08)  # create an Option
     price!(a_fin_inst, BinomialTree)  # add the binomial Option value to the options values
 
@@ -99,9 +99,9 @@ end
     The Value of this call option should be 7.074
     """
     # Create needed values
-    a_stock = Stock(110.0; volatility = 0.3)  # create a widget
-    a_fin_inst = AmericanCallOption(;widget = a_stock, strike_price = 100, risk_free_rate = 0.05)  # create an Option
-    price!(a_fin_inst, BinomialTree; delta = 0.035)  # add the binomial Option value to the options values
+    a_stock = Stock(110.0, 0.3)  # create a widget
+    a_fin_inst = AmericanCallOption(;underlying = a_stock, strike_price = 100, risk_free_rate = 0.05)  # create an Option
+    price(a_fin_inst, BinomialTree, 0.035)  # add the binomial Option value to the options values
 
     # check that a value was added to a_fin_inst
     value = a_fin_inst.values_library["BinomialTree"]["value"]

@@ -11,9 +11,22 @@ price(s::Stock) = price(s.prices)
 price(fin_obj, pricing_model; _...) = 
     error("Cannot price $(typeof(fin_obj)) with $(typeof(pricing_model))")
 
+# model to get needed numbers from struct for pure math functions
+price(option::Option, pricing_model::Type{<:Model}, args...) = 
+    price(
+        pricing_model, 
+        typeof(option), 
+        price(option.underlying),
+        option.strike_price,
+        get_volatility(option.underlying),
+        option.risk_free_rate, 
+        option.maturity,
+        args...
+    )
+
 # -------------- Black Scholes pricing model ----------------------------------------------------
 # math needed to price Euro calls/ puts with Black Scholes formula
-function price(::BlackScholes, option_type::Type{<:CallOption}, S, K, sigma, r, T, delta=0)
+function price(::Type{BlackScholes}, option_type::Type{<:CallOption}, S, K, sigma, r, T, delta=0)
     d1 =
         (log(S / K) + (r + -delta + (sigma^2 / 2)) * T) / 
         (sigma * sqrt(T))
@@ -22,7 +35,7 @@ function price(::BlackScholes, option_type::Type{<:CallOption}, S, K, sigma, r, 
         K * exp(-r * T) * cdf(Normal(), d2)
 end
 
-function price(::BlackScholes, option_type::Type{<:PutOption}, S, K, sigma, r, T, delta=0)
+function price(::Type{BlackScholes}, option_type::Type{<:PutOption}, S, K, sigma, r, T, delta=0)
     d1 =
         (log(S / K) + (r + -delta + (sigma^2 / 2)) * T) / 
         (sigma * sqrt(T))
@@ -31,22 +44,73 @@ function price(::BlackScholes, option_type::Type{<:PutOption}, S, K, sigma, r, T
         K * exp(-r * T) * cdf(Normal(), -d2)
 end
 
-# TODO: Figure out if we need this still
-price(::BlackScholes, option_type::Type{<:PutOption}, S::AbstractArray, K, sigma, r, T, delta=0) = 
-    price(BlackScholes(), option_type, S[end], K, sigma, r, T, delta)
-price(::BlackScholes, option_type::Type{<:CallOption}, S::AbstractArray, K, sigma, r, T, delta=0) = 
-    price(BlackScholes(), option_type, S[end], K, sigma, r, T, delta)
+# -------------- Binomial Tree pricing model -----------
+function price(::Type{BinomialTree}, option_type::Type{<:EuroCallOption}, s_0, K, sigma, r, T, delta=0, tree_depth=3)
+    #=
+    EURO OPTION
+    tree_depth = the depth of the tree
+    r = rate of return
+    strike_price = the strike price in dollars
+    delta = intrest rate
+    =#
 
-price(option::Option, pricing_model::Type{BlackScholes};_...) = 
-    price(
-        BlackScholes(), 
-        typeof(option), 
-        price(option.underlying),
-        option.strike_price,
-        get_volatility(option.underlying),
-        option.risk_free_rate, 
-        option.maturity
-    )
+    dt = T / tree_depth
+
+    u = get_u(r, delta, dt, sigma)  # up movement 
+    d = get_d(r, delta, dt, sigma)  # down movement
+    p = get_p(r, dt, u, d, delta)  # risk neutral probability of an up move
+
+    c = 0
+    # value of the call is a weighted average of the values at each terminal node multiplied by the corresponding probability value
+    for k = tree_depth:-1:0
+        p_star =
+            (factorial(tree_depth) / (factorial(tree_depth - k) * factorial(k))) *
+            p^k *
+            (1 - p)^(tree_depth - k)
+        term_val = s_0 * u^k * d^(tree_depth - k)
+        c += max(term_val - K, 0) * p_star
+    end
+    return exp(-r * T) * c
+end
+
+function price(::Type{BinomialTree}, option_type::Type{<:AmericanCallOption}, s_0, K, sigma, r, T, delta=0, tree_depth=3)
+
+    dt = T / tree_depth
+
+    u = get_u(r, delta, dt, sigma)  # up movement 
+    d = get_d(r, delta, dt, sigma)  # down movement
+    p = get_p(r, dt, u, d, delta)  # risk neutral probability of an up move
+
+    # Get terminal node p*
+    a_vector = zeros(typeof(s_0), tree_depth + 1)
+    for k = tree_depth:-1:0
+        a_vector[tree_depth-k+1] = max(s_0 * u^k * d^(tree_depth - k) - K, 0)
+    end
+
+    for i = 1:tree_depth+1
+        place_holder = 0
+        for m = 0:tree_depth-i
+            k = tree_depth - m - i
+
+            cu = a_vector[m+1]
+            cd = a_vector[m+2]
+            current_node = s_0 * u^k * d^(place_holder)
+
+            a_vector[m+1] =
+                max(current_node - K, (p * cu + (1 - p) * cd) * exp(-r * dt))
+
+            place_holder += 1
+        end
+    end
+    return a_vector[1]
+end
+
+
+# TODO: Figure out if we need this still
+# price(::BlackScholes, option_type::Type{<:PutOption}, S::AbstractArray, K, sigma, r, T, delta=0) = 
+#     price(BlackScholes(), option_type, S[end], K, sigma, r, T, delta)
+# price(::BlackScholes, option_type::Type{<:CallOption}, S::AbstractArray, K, sigma, r, T, delta=0) = 
+#     price(BlackScholes(), option_type, S[end], K, sigma, r, T, delta)
 
 #TODO: Expose all math and create dispatch functions for all pricing methods
 """
@@ -96,93 +160,6 @@ a_fin_inst = EuroCallOption(a_stock, 40; risk_free_rate=.05)
 price!(a_fin_inst, BinomialTree)  
 ```
 """
-
-function price!(
-    fin_obj::EuroCallOption,
-    pricing_model::Type{BinomialTree};
-    tree_depth = 3,
-    delta = 0,
-    _...
-)
-    """ 
-    EURO OPTION
-    tree_depth = the depth of the tree
-    r = rate of return
-    strike_price = the strike price in dollars
-    delta = intrest rate
-    """
-
-    r = fin_obj.risk_free_rate
-    strike_price = fin_obj.strike_price
-    s_0 = last(fin_obj.widget.prices)
-    sigma = fin_obj.widget.volatility
-    dt = fin_obj.maturity / tree_depth
-
-    u = get_u(r, delta, dt, sigma)  # up movement 
-    d = get_d(r, delta, dt, sigma)  # down movement
-    p = get_p(r, dt, u, d, delta)  # risk neutral probability of an up move
-
-    c = 0
-    # value of the call is a weighted average of the values at each terminal node multiplied by the corresponding probability value
-    for k = tree_depth:-1:0
-        p_star =
-            (factorial(tree_depth) / (factorial(tree_depth - k) * factorial(k))) *
-            p^k *
-            (1 - p)^(tree_depth - k)
-        term_val = s_0 * u^k * d^(tree_depth - k)
-        c += max(term_val - strike_price, 0) * p_star
-    end
-    value = exp(-r * fin_obj.maturity) * c
-    fin_obj.values_library["BinomialTree"] =
-        Dict("value" => value, "tree_depth" => tree_depth, "delta" => delta)
-    return value
-end
-
-function price!(
-    fin_obj::AmericanCallOption,
-    pricing_model::Type{BinomialTree};
-    tree_depth = 3,
-    delta = 0,
-    _...
-)
-    r = fin_obj.risk_free_rate
-    strike_price = fin_obj.strike_price
-    s_0 = last(fin_obj.widget.prices)
-    sigma = fin_obj.widget.volatility
-    dt = fin_obj.maturity / tree_depth
-
-    u = get_u(r, delta, dt, sigma)  # up movement 
-    d = get_d(r, delta, dt, sigma)  # down movement
-    p = get_p(r, dt, u, d, delta)  # risk neutral probability of an up move
-
-    # Get terminal node p*
-    a_vector = zeros(valtype(valtype(fin_obj.values_library)), tree_depth + 1)
-    for k = tree_depth:-1:0
-        a_vector[tree_depth-k+1] = max(s_0 * u^k * d^(tree_depth - k) - strike_price, 0)
-    end
-    to_return = 0
-
-    for i = 1:tree_depth+1
-        place_holder = 0
-        for m = 0:tree_depth-i
-            k = tree_depth - m - i
-
-            cu = a_vector[m+1]
-            cd = a_vector[m+2]
-            current_node = s_0 * u^k * d^(place_holder)
-
-            a_vector[m+1] =
-                max(current_node - strike_price, (p * cu + (1 - p) * cd) * exp(-r * dt))
-
-            place_holder += 1
-        end
-        to_return = a_vector[1]
-    end
-
-    fin_obj.values_library["BinomialTree"] =
-        Dict("value" => to_return, "depth" => tree_depth, "delta" => delta)
-    return to_return
-end
 
 function price!(
     fin_obj::EuroPutOption,
