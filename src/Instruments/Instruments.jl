@@ -1,11 +1,12 @@
 module Instruments
 using Statistics: var
 
-# export from widgets
-export Widget, Stock, Commodity, Bond
+# export from assets.jl
+export Asset, BaseAsset, Stock, Commodity, Bond, PriceType, StaticPrice, HistoricPrices, HistoricTrait, IsHistoric, NotHistoric
+export price_vec, underlying, volatility_history, timesteps_per_period, checkhistoric
+
 # exports from financial_instruments
-export Asset,
-    Option,
+export Option,
     CallOption,
     PutOption,
     EuroCallOption,
@@ -16,7 +17,6 @@ export Asset,
 
 export get_volatility, add_price_value, get_prices # exporting this to make tests easier
 
-include("widgets.jl")
 include("assets.jl")
 include("financial_instruments.jl")
 

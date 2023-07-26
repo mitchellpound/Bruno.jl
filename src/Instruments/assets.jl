@@ -1,6 +1,3 @@
-export PriceType, StaticPrice, HistoricPrices, HistoricTrait, IsHistoric, NotHistoric, checkhistoric
-export price_vec, underlying, volatility_history, timesteps_per_period, BaseAsset
-
 # TODO: Add docs
 """
 
@@ -184,4 +181,78 @@ function volatility_history(prices::AbstractArray, timesteps_per_period, window_
         h_volatil[i] = get_volatility(@view(prices[i:i+window_size-1]),timesteps_per_period)
     end
     return h_volatil
+end
+
+# TODO: Figure out Bond logic/ clean up constructors
+# ---------- Bonds -----------------
+""" 
+    Bond <: Widget
+
+Widget subtype. Used as a base or root asset for FinancialInstrument.
+"""
+struct Bond{T,TF} <: Widget
+    prices::Array{T}
+    name::String
+    time_mat::TF
+    coupon_rate::TF
+
+    # constructor for kwargs
+    function Bond{T,TF}(; prices, name = "", time_mat = 1, coupon_rate = 0.03, _...) where {T,TF}
+        size(prices)[1] > 0 ? nothing : error("Prices cannot be an empty vector")
+        time_mat > 0 ? nothing : error("time_mat must be positive")
+	new{T,TF}(prices, name, time_mat, coupon_rate)
+    end
+
+    # constructor for ordered argumentes 
+    function Bond{T,TF}(prices, name = "", time_mat = 1, coupon_rate = 0.03) where {T,TF}
+        size(prices)[1] > 0 ? nothing : error("Prices cannot be an empty vector")
+        time_mat > 0 ? nothing : error("time_mat must be positive")
+	new{T,TF}(prices, name, time_mat, coupon_rate)
+    end
+end
+
+# outer constructor to make a Bond with a (static) single price
+"""
+    Bond(prices, name, time_mat, coupon_rate)
+    Bond(price; kwargs...)
+    Bond(;kwargs)
+
+Construct a Bond type to use as a base asset for FinancialInstrument.
+
+## Arguments
+- `prices`:Historical prices (input as a 1-D array) or the current price input as a number `<: Real`
+- `name`: String name of the Bond or issuing company. Default "".
+- `time_mat`: Time until the bond expires (matures) in years. Default 1.
+- `coupon_rate`: The coupon rate for the bond. Default .03.
+
+## Examples
+```julia
+Bond([1,2,3,4,5], "Example", .5, .05)
+
+kwargs = Dict(:prices => [1, 2, 3, 4, 5], :name => "Example", :time_mat => .5, :coupon_rate => .05);
+Bond(;kwargs...)
+
+Bond(2; coupon_rate=.05)
+```
+"""
+function Bond(price; name = "", time_mat = 1, coupon_rate = 0.03)
+    prices = [price]
+    T = typeof(price)
+    time_mat, coupon_rate = promote(time_mat, coupon_rate)
+    TF = typeof(coupon_rate)
+    return Bond{T,TF}(; prices = prices, name = name, time_mat = time_mat, coupon_rate = coupon_rate)
+end
+
+# outer constructor with implied type of prices vector 
+function Bond(; prices, name = "", time_mat = 1, coupon_rate = 0.03, _...)
+    T = eltype(prices)
+    time_mat, coupon_rate = promote(time_mat, coupon_rate)
+    TF = typeof(coupon_rate)
+    return Bond{T,TF}(prices, name, time_mat, coupon_rate)
+end
+function Bond(prices::Vector, name = "", time_mat = 1, coupon_rate = 0.03)
+    T = eltype(prices)
+    time_mat, coupon_rate = promote(time_mat, coupon_rate)
+    TF = typeof(coupon_rate)
+    return Bond{T,TF}(prices, name, time_mat, coupon_rate)
 end

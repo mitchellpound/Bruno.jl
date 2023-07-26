@@ -2,6 +2,53 @@ export time_lag_price
 using Distributions: Normal, cdf
 
 
+# price() acts as a getter for PriceTypes and BaseAssets
+price(p::StaticPrice) = p.price
+price(p::HistoricPrices) = p.prices[end]
+price(s::Stock) = price(s.prices)
+
+# general function to throw error for unimplimented price models
+price(fin_obj, pricing_model; _...) = 
+    error("Cannot price $(typeof(fin_obj)) with $(typeof(pricing_model))")
+
+# -------------- Black Scholes pricing model ----------------------------------------------------
+# math needed to price Euro calls/ puts with Black Scholes formula
+function price(::BlackScholes, option_type::Type{<:CallOption}, S, K, sigma, r, T, delta=0)
+    d1 =
+        (log(S / K) + (r + -delta + (sigma^2 / 2)) * T) / 
+        (sigma * sqrt(T))
+    d2 = d1 - sigma * sqrt(T)
+    return S * exp(-delta * T) * cdf(Normal(), d1) - 
+        K * exp(-r * T) * cdf(Normal(), d2)
+end
+
+function price(::BlackScholes, option_type::Type{<:PutOption}, S, K, sigma, r, T, delta=0)
+    d1 =
+        (log(S / K) + (r + -delta + (sigma^2 / 2)) * T) / 
+        (sigma * sqrt(T))
+    d2 = d1 - sigma * sqrt(T)
+    return -S * exp(-delta * T) * cdf(Normal(), -d1) +
+        K * exp(-r * T) * cdf(Normal(), -d2)
+end
+
+# TODO: Figure out if we need this still
+price(::BlackScholes, option_type::Type{<:PutOption}, S::AbstractArray, K, sigma, r, T, delta=0) = 
+    price(BlackScholes(), option_type, S[end], K, sigma, r, T, delta)
+price(::BlackScholes, option_type::Type{<:CallOption}, S::AbstractArray, K, sigma, r, T, delta=0) = 
+    price(BlackScholes(), option_type, S[end], K, sigma, r, T, delta)
+
+price(option::Option, pricing_model::Type{BlackScholes};_...) = 
+    price(
+        BlackScholes(), 
+        typeof(option), 
+        price(option.underlying),
+        option.strike_price,
+        get_volatility(option.underlying),
+        option.risk_free_rate, 
+        option.maturity
+    )
+
+#TODO: Expose all math and create dispatch functions for all pricing methods
 """
     price!(fin_obj<:CallOption, pricing_model::Type{<:Model};kwargs...)
 
@@ -25,8 +72,7 @@ a_fin_inst = EuroCallOption(a_stock, 40; risk_free_rate=.05)
 price!(a_fin_inst, BinomialTree)  
 ```
 """
-price!(fin_obj, pricing_model; _...) = 
-    error("Cannot price $(typeof(fin_obj)) with $(typeof(pricing_model))")
+
 
 """
     price!(fin_obj::Option, pricing_model::Type{BinomialTree}; kwargs...)
@@ -91,7 +137,6 @@ function price!(
         Dict("value" => value, "tree_depth" => tree_depth, "delta" => delta)
     return value
 end
-
 
 function price!(
     fin_obj::AmericanCallOption,
@@ -254,156 +299,6 @@ price!(call, BlackScholes)
 """
 
 
-
-
-# ------------------------------------------------------------------
-price(p::StaticPrice) = p.price
-price(p::HistoricPrices) = p.prices[end]
-
-price(s::Stock) = price(s.prices)
-
-# math needed to price Euro calls/ puts with Black Scholes formula
-function price(::BlackScholes, option_type::Type{<:CallOption}, S, K, sigma, r, T, delta=0)
-    d1 =
-        (log(S / K) + (r + -delta + (sigma^2 / 2)) * T) / 
-        (sigma * sqrt(T))
-    d2 = d1 - sigma * sqrt(T)
-    return S * exp(-delta * T) * cdf(Normal(), d1) - 
-        K * exp(-r * T) * cdf(Normal(), d2)
-end
-
-function price(::BlackScholes, option_type::Type{<:PutOption}, S, K, sigma, r, T, delta=0)
-    d1 =
-        (log(S / K) + (r + -delta + (sigma^2 / 2)) * T) / 
-        (sigma * sqrt(T))
-    d2 = d1 - sigma * sqrt(T)
-    return -S * exp(-delta * T) * cdf(Normal(), -d1) +
-        K * exp(-r * T) * cdf(Normal(), -d2)
-end
-
-price(::BlackScholes, option_type::Type{<:PutOption}, S::AbstractArray, K, sigma, r, T, delta=0) = 
-    price(BlackScholes(), option_type, S[end], K, sigma, r, T, delta)
-price(::BlackScholes, option_type::Type{<:CallOption}, S::AbstractArray, K, sigma, r, T, delta=0) = 
-    price(BlackScholes(), option_type, S[end], K, sigma, r, T, delta)
-
-price(option::Option, pricing_model::Type{BlackScholes};_...) = 
-    price(
-        BlackScholes(), 
-        typeof(option), 
-        price(option.underlying),
-        option.strike_price,
-        get_volatility(option.underlying),
-        option.risk_free_rate, 
-        option.maturity
-    )
-
-
-
-
-price_history(option::Option, pricing_model, time_decay = true, window_size = 3) =
-    price_history(checkhistoric(option), option, pricing_model, time_decay , window_size)
-
-function price_history(::IsHistoric, 
-    option::Option, 
-    pricing_model, 
-    time_decay = true,
-    window_size = 3;
-    kwargs...
-)
-    prices = price_vec(underlying(option))
-    n_prices = size(option |> underlying |> price_vec)[1] - window_size + 1
-    hist_prices = Array{typeof(option.strike_price)}(undef, n_prices)
-    sigma_vec = volatility_history(underlying(option), window_size)
-    if time_decay
-        maturity_vec = [max(0, option.maturity - i / timesteps_per_period(option)) for i in 1:size(h_prices)[1]]
-    else
-        maturity_vec = fill(option.maturity, n_prices)
-    end
-    for i in 1:n_prices
-        hist_prices[i] = price(
-            pricing_model, 
-            typeof(option), 
-            @view(prices[i:i + window_size - 1]),
-            option.strike_price, 
-            sigma_vec[i],
-            option.risk_free_rate, 
-            maturity_vec[i];
-            kwargs...
-        )
-    end
-    return hist_prices
-end
-
-# just the math... without the struct
-function price_history(::IsHistoric, 
-    pricing_model::Model, 
-    option_type,
-    prices, 
-    strike_price,
-    risk_free_rate_vec,
-    maturity,
-    timesteps_per_period,
-    time_decay = true,
-    window_size = 3;
-    kwargs...
-)
-    n_prices = lenghth(prices) - window_size + 1
-    option_prices = Array{typeof(strike_price)}(undef, n_prices)
-    sigma_vec = volatility_history(prices, timesteps_per_period, window_size)
-    if time_decay
-        maturity_vec = [max(0, maturity - i / timesteps_per_period) for i in 1:n_prices]
-    else
-        maturity_vec = fill(maturity, n_prices)
-    end
-    for i in 1:n_prices
-        option_prices[i] = price(
-            pricing_model, 
-            option_type, 
-            @view(prices[i:i + window_size - 1]),
-            strike_price, 
-            sigma_vec[i],
-            risk_free_rate_vec[i], 
-            maturity_vec[i];
-            kwargs...
-        )
-    end
-    return option_prices
-end
-    
-function time_lag_price(
-    pricing_model::Model, 
-    option_type::Type{<:Option}, 
-    underlying_price, 
-    strike_price, 
-    sigma, 
-    r,
-    T, 
-    n_steps, 
-    timesteps_per_period, 
-    args...
-)
-    # option_prices = Array{typeof(price)}(undef, n_steps)
-    option_prices = zeros(Float64, n_steps)
-    maturity_vec = [max(0, T - (i / timesteps_per_period)) for i in 0:n_steps-1]
-    print(maturity_vec)
-    for i in 1:n_steps
-        if maturity_vec[i] == 0
-            option_prices[i] = 0
-        else
-            option_prices[i] = price(pricing_model, option_type, underlying_price, strike_price, sigma, r, maturity_vec[i], args...)
-        end
-    end
-    return option_prices
-end
-
-price_history(::NotHistoric, _...) = error("must have historic prices")
-# -------------------------------------------------------------------
-
-
-
-
-
-
 # function price!(fin_obj::EuroCallOption{<:Widget}, pricing_model::Type{BlackScholes}; _...)
 #     c1 = log(fin_obj.widget.prices[end] / fin_obj.strike_price)
 #     a1 = fin_obj.widget.volatility * sqrt(fin_obj.maturity)
@@ -553,3 +448,105 @@ end
 function payoff(type::PutOption, final_prices, strike_price)
     max.(strike_price .- final_prices, 0)
 end
+
+# TODO: document these
+# TODO: See if we need all of the price_history() ones
+# -------- time series price functions ----------------------
+price_history(option::Option, pricing_model, time_decay = true, window_size = 3) =
+    price_history(checkhistoric(option), option, pricing_model, time_decay , window_size)
+
+function price_history(::IsHistoric, 
+    option::Option, 
+    pricing_model, 
+    time_decay = true,
+    window_size = 3;
+    kwargs...
+)
+    prices = price_vec(underlying(option))
+    n_prices = size(option |> underlying |> price_vec)[1] - window_size + 1
+    hist_prices = Array{typeof(option.strike_price)}(undef, n_prices)
+    sigma_vec = volatility_history(underlying(option), window_size)
+    if time_decay
+        maturity_vec = [max(0, option.maturity - i / timesteps_per_period(option)) for i in 1:size(h_prices)[1]]
+    else
+        maturity_vec = fill(option.maturity, n_prices)
+    end
+    for i in 1:n_prices
+        hist_prices[i] = price(
+            pricing_model, 
+            typeof(option), 
+            @view(prices[i:i + window_size - 1]),
+            option.strike_price, 
+            sigma_vec[i],
+            option.risk_free_rate, 
+            maturity_vec[i];
+            kwargs...
+        )
+    end
+    return hist_prices
+end
+
+# just the math... without the struct
+function price_history(::IsHistoric, 
+    pricing_model::Model, 
+    option_type,
+    prices, 
+    strike_price,
+    risk_free_rate_vec,
+    maturity,
+    timesteps_per_period,
+    time_decay = true,
+    window_size = 3;
+    kwargs...
+)
+    n_prices = lenghth(prices) - window_size + 1
+    option_prices = Array{typeof(strike_price)}(undef, n_prices)
+    sigma_vec = volatility_history(prices, timesteps_per_period, window_size)
+    if time_decay
+        maturity_vec = [max(0, maturity - i / timesteps_per_period) for i in 1:n_prices]
+    else
+        maturity_vec = fill(maturity, n_prices)
+    end
+    for i in 1:n_prices
+        option_prices[i] = price(
+            pricing_model, 
+            option_type, 
+            @view(prices[i:i + window_size - 1]),
+            strike_price, 
+            sigma_vec[i],
+            risk_free_rate_vec[i], 
+            maturity_vec[i];
+            kwargs...
+        )
+    end
+    return option_prices
+end
+    
+price_history(::NotHistoric, _...) = error("must have historic prices")
+
+function time_lag_price(
+    pricing_model::Model, 
+    option_type::Type{<:Option}, 
+    underlying_price, 
+    strike_price, 
+    sigma, 
+    r,
+    T, 
+    n_steps, 
+    timesteps_per_period, 
+    args...
+)
+    # option_prices = Array{typeof(price)}(undef, n_steps)
+    option_prices = zeros(Float64, n_steps)
+    maturity_vec = [max(0, T - (i / timesteps_per_period)) for i in 0:n_steps-1]
+    print(maturity_vec)
+    for i in 1:n_steps
+        if maturity_vec[i] == 0
+            option_prices[i] = 0
+        else
+            option_prices[i] = price(pricing_model, option_type, underlying_price, strike_price, sigma, r, maturity_vec[i], args...)
+        end
+    end
+    return option_prices
+end
+

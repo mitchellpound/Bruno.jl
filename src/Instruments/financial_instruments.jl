@@ -208,7 +208,7 @@ end
 Future contract with underlying asset 'T'.
 """
 struct Future{T<:Widget,S,D} <: Derivative
-    widget::T
+    underlying::T
     strike_price::S
     risk_free_rate::S
     maturity::S
@@ -222,13 +222,14 @@ struct ETF <: Asset end
 """Still under development"""
 struct InterestRateSwap <: Asset end
 
+# TODO: Figure out if we need these? 
 #------- Helpers
-function add_price_value(a_fin_inst::Asset , a_new_price)
-    a_new_price >= 0 ? nothing :
-    @warn("You are trying to add a negative number to a prices list")
-    push!(a_fin_inst.widget.prices, a_new_price)
-end
+# function add_price_value(a_fin_inst::Asset , a_new_price)
+#     a_new_price >= 0 ? nothing :
+#     @warn("You are trying to add a negative number to a prices list")
+#     push!(a_fin_inst.widget.prices, a_new_price)
+# end
 
-function get_prices(a_fin_inst::Asset )
-    a_fin_inst.widget.prices
-end
+# function get_prices(a_fin_inst::Asset )
+#     a_fin_inst.widget.prices
+# end
