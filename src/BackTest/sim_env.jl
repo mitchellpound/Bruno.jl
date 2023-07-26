@@ -4,12 +4,14 @@ using DataFrames
 struct SimVariable end
 # struct Cash <: Asset end
 
+# TODO: Change to be parametric general type inference
 Base.@kwdef struct SimulationEnvironment
     N::Int32
     timesteps_per_period::Int32
     window_size::Int32
     data::DataFrame = DataFrame()
     coltypes::Vector = []
+    #typecols::Dict
     starting_holdings::Dict{String, Float64} = Dict()
 end
 
@@ -18,12 +20,14 @@ function SimulationEnvironment(
     timesteps_per_period, 
     window_size, 
     starting_cash, 
-)   env = SimulationEnvironment(;
-    N=N, 
-    timesteps_per_period=timesteps_per_period, 
-    window_size = window_size, 
-    starting_holdings = Dict("cash" => starting_cash))
-    add_interest_rate(env, zeros(Float64, N+window_size))
+    )   
+    env = SimulationEnvironment(;
+        N=N, 
+        timesteps_per_period=timesteps_per_period, 
+        window_size = window_size, 
+        starting_holdings = Dict("cash" => starting_cash))
+        add_interest_rate(env, zeros(Float64, N+window_size)
+    )
     return env
 end
 
@@ -47,6 +51,8 @@ function Base.getindex(env::SimulationEnvironment, vec::AbstractArray{<:Abstract
 
     env.data[current_time + env.window_size, vec]
 end
+
+Base.axes(env::SimulationEnvironment, i::Int64) = -env.window_size+1:env.N
 
 # TODO: FIX!!
 Base.getindex(env::SimulationEnvironment, string::AbstractString, i::Int) = env[[string], i]
@@ -192,6 +198,8 @@ function add_asset(
     underlying = env[underlying_name]
     hist_volatil = env["$(underlying_name)_volatility"]
     risk_free = env["lend_interest"]
+    
+    # price out option with N time lags each time step
     prices = []
     for i in 1:env.N+1
         push!(prices, time_lag_price(
@@ -206,10 +214,13 @@ function add_asset(
             env.timesteps_per_period)
         )
     end
+
+    # add data to the sim environment
     env.data[!, name] = vcat(fill(missing, env.window_size-1), prices)
     push!(env.coltypes, asset_type)
 
     #TODO figure out holdings!!!!
+    env.starting_holdings[name] = starting_holdings
 end
 
 function test_strategy(strategy::Function, env)
@@ -245,33 +256,14 @@ function test_strategy(strategy::Function, env)
     
 end
 
-function buy(name, number, env, step, ts_holdings)
-    # check for nonsensical buying
-    if number < 0
-        @warn(raw"unable to buy negative amounts. Use sell() instead")
-        return nothing
-    end
- 
-    index = findfirst(x -> x == name, names(env.data))
-    type = env.coltypes[index]
-    buy(type, name, number, env, step, ts_holdings)
-end
-
 function buy(type::Type{<:BaseAsset}, name, number, env, step, ts_holdings)
     ts_holdings[step+1, "cash"] -= env.data[step, name] * number 
     ts_holdings[step+1, name] += number
 end
 
-function sell(name, number, env, step, ts_holdings)
-    # check for nonsensical buying
-    if number < 0
-        @warn(raw"unable to sell negative amounts. Use buy() instead")
-        return nothing
-    end
- 
-    index = findfirst(x -> x == name, names(env.data))
-    type = env.coltypes[index]
-    sell(type, name, number, env, step, ts_holdings)
+function buy(type::Type{<:Derivative}, name, number, env, step, ts_holdings)
+
+
 end
 
 function sell(type::Type{<:BaseAsset},name, number, env, step, ts_holdings)
@@ -279,15 +271,15 @@ function sell(type::Type{<:BaseAsset},name, number, env, step, ts_holdings)
     ts_holdings[step+1, name] -= number
 end
 
-macro environment_setup(env, step, ts_holdings, strings)
+macro environment_setup(env, step, ts_holdings)
     quote
-        buy(name::AbstractString, number) = buy(name, number, $env, $step, $ts_holdings)
-        sell(name::AbstractString, number) = sell(name, number, $env, $step, $ts_holdings)
+        buy(name::AbstractString, number, args...) = buy(get_type(name), name, number, $env, $step, $ts_holdings, args...)
+        sell(name::AbstractString, number, args...) = sell(get_type(name), name, number, $env, $step, $ts_holdings, args...)
     end
 end
 
 function assign_variables(env::SimulationEnvironment, step, names)
     for name in names
-        @eval $(Symbol(name)) = env[begin:step, $name]
+        @eval $(Symbol(name)) = env.data[begin:step, $name]
     end
 end

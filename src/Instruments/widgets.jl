@@ -13,65 +13,65 @@ abstract type Widget end
 
 Widget subtype. Used as a base or root asset for FinancialInstrument.
 """
-struct Commodity{T, TI, TF} <: Widget
-    prices::Vector{T}
-    name::String
-    timesteps_per_period::TI
-    volatility::TF
+# struct Commodity{T, TI, TF} <: Widget
+#     prices::Vector{T}
+#     name::String
+#     timesteps_per_period::TI
+#     volatility::TF
 
-    # constructor for kwargs
+#     # constructor for kwargs
 
-    function Commodity{T,TI,TF}(;
-        prices,
-        name = "",
-        timesteps_per_period = length(prices),
-        volatility = get_volatility(prices, timesteps_per_period),
-        _...
-    ) where {T,TI,TF}
-        # allows single price input through kwargs (and ordered arguments)
-        if !isa(prices, Vector)
-            prices >= 0 ? prices = [prices] :
-            error("Single price point must be non-negative")
-            volatility == nothing ?
-            error("When using single value input for prices must specify volatility") :
-            nothing
-        end
-        size(prices)[1] > 0 ? nothing : error("Prices cannot be an empty vector")
-        # catch nothing volatility from get_volatility()
-        volatility == nothing ? error("Volatility cannot be nothing") : nothing
-        # catch negative volatility
-        volatility >= 0 ? nothing : error("volatility must be non negative")
-        # catch negative timesteps_per_period
-        timesteps_per_period >= 0 ? nothing : 
-        error("timesteps_per_period cannot be negative")
-	new{T,TI,TF}(prices, name, timesteps_per_period, volatility)
-    end
+#     function Commodity{T,TI,TF}(;
+#         prices,
+#         name = "",
+#         timesteps_per_period = length(prices),
+#         volatility = get_volatility(prices, timesteps_per_period),
+#         _...
+#     ) where {T,TI,TF}
+#         # allows single price input through kwargs (and ordered arguments)
+#         if !isa(prices, Vector)
+#             prices >= 0 ? prices = [prices] :
+#             error("Single price point must be non-negative")
+#             volatility == nothing ?
+#             error("When using single value input for prices must specify volatility") :
+#             nothing
+#         end
+#         size(prices)[1] > 0 ? nothing : error("Prices cannot be an empty vector")
+#         # catch nothing volatility from get_volatility()
+#         volatility == nothing ? error("Volatility cannot be nothing") : nothing
+#         # catch negative volatility
+#         volatility >= 0 ? nothing : error("volatility must be non negative")
+#         # catch negative timesteps_per_period
+#         timesteps_per_period >= 0 ? nothing : 
+#         error("timesteps_per_period cannot be negative")
+# 	new{T,TI,TF}(prices, name, timesteps_per_period, volatility)
+#     end
 
-    # constructor for ordered argumentes 
-    function Commodity{T,TI,TF}(
-        prices,
-        name = "",
-        timesteps_per_period = length(prices),
-        volatility = get_volatility(prices, timesteps_per_period)
-    ) where {T,TI,TF}
-        if !isa(prices, Vector)
-            prices >= 0 ? prices = [prices] :
-            error("Single price point must be non-negative")
-            volatility == nothing ?
-            error("When using single value input for prices must specify volatility") :
-            nothing
-        end
-        size(prices)[1] > 0 ? nothing : error("Prices cannot be an empty vector")
-        # catch nothing volatility from get_volatility()
-        volatility == nothing ? error("Volatility cannot be nothing") : nothing
-        # catch negative volatility
-        volatility >= 0 ? nothing : error("volatility must be non negative")
-        timesteps_per_period >= 0 ? nothing : 
-        # catch negative timesteps_per_period
-        error("timesteps_per_period cannot be negative")
-	new{T,TI,TF}(prices, name, timesteps_per_period, volatility)
-    end
-end
+#     # constructor for ordered argumentes 
+#     function Commodity{T,TI,TF}(
+#         prices,
+#         name = "",
+#         timesteps_per_period = length(prices),
+#         volatility = get_volatility(prices, timesteps_per_period)
+#     ) where {T,TI,TF}
+#         if !isa(prices, Vector)
+#             prices >= 0 ? prices = [prices] :
+#             error("Single price point must be non-negative")
+#             volatility == nothing ?
+#             error("When using single value input for prices must specify volatility") :
+#             nothing
+#         end
+#         size(prices)[1] > 0 ? nothing : error("Prices cannot be an empty vector")
+#         # catch nothing volatility from get_volatility()
+#         volatility == nothing ? error("Volatility cannot be nothing") : nothing
+#         # catch negative volatility
+#         volatility >= 0 ? nothing : error("volatility must be non negative")
+#         timesteps_per_period >= 0 ? nothing : 
+#         # catch negative timesteps_per_period
+#         error("timesteps_per_period cannot be negative")
+# 	new{T,TI,TF}(prices, name, timesteps_per_period, volatility)
+#     end
+# end
 
 
 # outer constructor to make a Commodity with a (static) single price
