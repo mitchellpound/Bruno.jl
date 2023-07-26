@@ -110,38 +110,38 @@ Commodity(;kwargs...)
 
 Commodity(40; volatility=.05)
 ```
-"""
-function Commodity(price; name = "", volatility)
-    prices = [price]
-    T = typeof(price)
-    TF = typeof(volatility)
-    return Commodity{T,Int16,TF}(; prices = prices, name = name, volatility = volatility, timesteps_per_period = 0)
-end
+# """
+# function Commodity(price; name = "", volatility)
+#     prices = [price]
+#     T = typeof(price)
+#     TF = typeof(volatility)
+#     return Commodity{T,Int16,TF}(; prices = prices, name = name, volatility = volatility, timesteps_per_period = 0)
+# end
 
-# outer constructor to infer the type used in the prices array
-function Commodity(
-    prices::Vector,
-    name = "",
-    timesteps_per_period = length(prices),
-    volatility = get_volatility(prices, timesteps_per_period)
-)
-    T = eltype(prices)
-    TI = typeof(timesteps_per_period)
-    TF = typeof(volatility)
-    return Commodity{T,TI,TF}(prices, name, timesteps_per_period, volatility)
-end
-function Commodity(;
-        prices,
-        name = "",
-        timesteps_per_period = length(prices),
-        volatility = get_volatility(prices, timesteps_per_period),
-        _...
-)
-    T = eltype(prices)
-    TI = typeof(timesteps_per_period)
-    TF = typeof(volatility)
-    return Commodity{T,TI,TF}(prices, name, timesteps_per_period, volatility)
-end
+# # outer constructor to infer the type used in the prices array
+# function Commodity(
+#     prices::Vector,
+#     name = "",
+#     timesteps_per_period = length(prices),
+#     volatility = get_volatility(prices, timesteps_per_period)
+# )
+#     T = eltype(prices)
+#     TI = typeof(timesteps_per_period)
+#     TF = typeof(volatility)
+#     return Commodity{T,TI,TF}(prices, name, timesteps_per_period, volatility)
+# end
+# function Commodity(;
+#         prices,
+#         name = "",
+#         timesteps_per_period = length(prices),
+#         volatility = get_volatility(prices, timesteps_per_period),
+#         _...
+# )
+#     T = eltype(prices)
+#     TI = typeof(timesteps_per_period)
+#     TF = typeof(volatility)
+#     return Commodity{T,TI,TF}(prices, name, timesteps_per_period, volatility)
+# end
 
 # ---------- Bonds -----------------
 """ 
