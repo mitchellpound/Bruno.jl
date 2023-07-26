@@ -133,7 +133,7 @@ Stock(price, volatility, name = "") = Stock(StaticPrice(price, volatility), name
 Stock(prices::AbstractArray, timesteps_per_period = size(prices)[1], name = "") = Stock(HistoricPrices(prices, timesteps_per_period), name)
 
 function Stock(;prices, volatility = nothing, timesteps_per_period = nothing, name = "") 
-    if isa(prices, PricesType)
+    if isa(prices, PriceType)
         return Stock(prices, name)
     end
     return Stock(PriceType(prices, volatility, timesteps_per_period), name)
@@ -159,7 +159,7 @@ Commodity(price, volatility, name = "") = Commodity(StaticPrice(price, volatilit
 Commodity(prices::AbstractArray, timesteps_per_period = size(prices)[1], name = "") = Commodity(HistoricPrices(prices, timesteps_per_period), name)
 
 function Commodity(;prices, volatility = nothing, timesteps_per_period = nothing, name = "") 
-    if isa(prices, PricesType)
+    if isa(prices, PriceType)
         return Stock(prices, name)
     end
     return Commodity(PriceType(prices, volatility, timesteps_per_period), name)

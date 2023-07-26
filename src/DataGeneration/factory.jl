@@ -32,7 +32,7 @@ function factory(widget::BaseAsset, bootstrap_method, nWidgets)
     input = BootstrapInput(returns, bootstrap_method; n=length(returns), block_size=opt_block_length(widget_prices, bootstrap_method))
     bs_data = makedata(input, nWidgets)
     # Create a vector of widgets
-    widget_ar = Vector{BaseAsset}()
+    widget_ar = Vector{Asset}()
     kwargs = Dict(fields .=> getfield.(Ref(widget), fields))
     for column = 1:nWidgets
         # take the returns back to prices
