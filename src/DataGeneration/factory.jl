@@ -29,7 +29,7 @@ function factory(widget::BaseAsset, bootstrap_method, nWidgets)
         i = 1:(size(widget_prices)[1]-1)
     ]
     # bootstrap the returns
-    input = BootstrapInput{bootstrap_method}(returns, length(returns), opt_block_length(widget_prices, bootstrap_method))
+    input = BootstrapInput(returns, bootstrap_method; n=length(returns), block_size=opt_block_length(widget_prices, bootstrap_method))
     bs_data = makedata(input, nWidgets)
     # Create a vector of widgets
     widget_ar = Vector{BaseAsset}()

@@ -69,7 +69,7 @@ function BootstrapInput(
 end
 
 @inline BootstrapInput{bootstrap_method}(input_data, n, block_size) where {bootstrap_method <: Type{<:TSBootMethod}}= 
-    BootstrapInput(input_data, bootstrap_method, n, block_size)
+    BootstrapInput(input_data, bootstrap_method; n=n, block_size=block_size)
 
 function makedata(param::BootstrapInput{Stationary}, nSimulation = 1)
     # check for block_size > 1 so geometric distro doesn't blow up
