@@ -421,7 +421,7 @@ end
 price_history(::NotHistoric, _...) = error("must have historic prices")
 
 function time_lag_price(
-    pricing_model::Model, 
+    pricing_model::Type{<:Model}, 
     option_type::Type{<:Option}, 
     underlying_price, 
     strike_price, 

@@ -1,27 +1,44 @@
 export SimulationEnvironment, add_asset, add_variable, add_interest_rate
 export SimVariable, get_type
 using DataFrames
+using SparseArrays
+
 struct SimVariable end
 # struct Cash <: Asset end
 
 # TODO: Change to be parametric general type inference
-Base.@kwdef struct SimulationEnvironment
-    N::Int32
-    timesteps_per_period::Int32
-    window_size::Int32
+#=
+TODO list:
+x - Figure out coltypes in struct and add_asset functs
+x - Make sure all the add_asset functs work
+- Write tests for add_asset
+- Check on returned types for m[~~] 
+    - Are they vectors or DataFrames? prefer vectors
+- Make easy add_asset(struct) functions w/ asset getter funcs
+- Make sure buy/sell and ts_holdings works for derivatives
+- Make value tracker for ts_holdings inside test_strategy
+- Make/ run some tests on the whole SimEnv ecosystem
+- Change SimulationEnvironment to be generalized parametric type
+- Test to see if Base.axes() overload really worked
+=#
+Base.@kwdef struct SimulationEnvironment{TI, TF}
+    N::TI
+    timesteps_per_period::TI
+    window_size::TI
     data::DataFrame = DataFrame()
-    coltypes:: Dict{String, Any} = Dict()
-    typecols::Dict{Any, String} = Dict()
-    starting_holdings::Dict{String, Float64} = Dict()
+    coltypes:: Dict{String, DataType} = Dict()
+    typecols::Dict{DataType, Vector{String}} = Dict(SimVariable => [])
+    starting_holdings::Dict{String, TF} = Dict()
 end
 
+# TODO: Add better variety of constructors 
 function SimulationEnvironment(
     N, 
     timesteps_per_period, 
     window_size, 
     starting_cash, 
     )   
-    env = SimulationEnvironment(;
+    env = SimulationEnvironment{typeof(N), Float64}(;
         N=N, 
         timesteps_per_period=timesteps_per_period, 
         window_size = window_size, 
@@ -31,6 +48,7 @@ function SimulationEnvironment(
     return env
 end
 
+# ------- SimulationEnvironment getters --------------
 # TODO: FIX!!
 Base.firstindex(env::SimulationEnvironment) = 1 - env.window_size
 Base.lastindex(env::SimulationEnvironment) = env.N
@@ -97,16 +115,21 @@ Base.setindex!(env::SimulationEnvironment, variable, string) = add_variable(env,
 get_variables(env::SimulationEnvironment) = env[SimVariable]
 get_variable_names(env::SimulationEnvironment) = names(env[SimVariable])
 
-function get_type(env::SimulationEnvironment, name)
-    index = findfirst(x -> x == name, names(env.data))
-    if index === nothing
-        throw(KeyError(name))
+
+get_type(env::SimulationEnvironment, name) = env.coltypes[name]
+get_all_of_type(env::SimulationEnvironment, type) = nothing
+
+function get_subtypes(env::SimulationEnvironment, type) 
+    cols = []
+    for key in keys(env.typecols)
+        if key <: type
+            push!(cols, env.typecols[key]...)
+        end
     end
-    env.coltypes[index]
+    return cols
 end
 
-
-
+# ------------------- SimulationEnvironment show funcs ------------
 
 # function Base.show(io::IO, e::SimulationEnvironment{T}) where{T}
 #     println("SimulationEnvironment{$T}")
@@ -120,6 +143,7 @@ end
 #     end
 # end
 
+# -------------- SimulationEnvironment add functions -----------
 # lend interest is interest rate you get on your savings
 # borrow interest is the rate you pay on negative balances
 function add_interest_rate(env::SimulationEnvironment, lend_interest, borrow_interest = lend_interest )
@@ -144,7 +168,11 @@ function add_variable(env::SimulationEnvironment, var_vec::AbstractArray, name)
 
     # add variable to the sim env dataframe
     env.data[!, name] = var_vec 
-    push!(env.coltypes, SimVariable)
+
+    # add type data to sim env
+    env.coltypes[name] = SimVariable
+    push!(env.typecols[SimVariable], name)
+    # push!(env.coltypes, SimVariable)
 end
 
 # adds a variable that is a function of some other variable or asset
@@ -176,7 +204,14 @@ function add_asset(
 
     # add to SimulationEnvironment assets dataframe
     env.data[!, name] = reduce(vcat, [historic_prices, future_prices[1:env.N]])
-    push!(env.coltypes, asset_type)
+    
+    # add type data to env
+    env.coltypes[name] = asset_type
+    if asset_type in keys(env.typecols)
+        push!(env.typecols[asset_type], name)
+    else
+        env.typecols[asset_type] = [name]
+    end
     
     # add volatility to variables
     add_variable(volatility_history, env, name, "$(name)_volatility", env.timesteps_per_period, env.window_size) 
@@ -217,18 +252,37 @@ function add_asset(
 
     # add data to the sim environment
     env.data[!, name] = vcat(fill(missing, env.window_size-1), prices)
-    push!(env.coltypes, asset_type)
-
-    #TODO figure out holdings!!!!
+    # add type data to env
+    # if the datatype is paramtetric, make sure it is a full datatype
+    if !isa(asset_type, DataType)
+        asset_type = asset_type{get_type(env, underlying_name), eltype(env[underlying_name])}
+    end
+    env.coltypes[name] = asset_type
+    if asset_type in keys(env.typecols)
+        push!(env.typecols[asset_type], name)
+    else
+        env.typecols[asset_type] = [name]
+    end
+    
+    # add to env starting holds
     env.starting_holdings[name] = starting_holdings
 end
 
-function test_strategy(strategy::Function, env)
-    # build out holdings dataframe with starting holdings
+# ------------------ Using the strategy ---------------
+# The actual meat of the SimulationEnvironment
+function test_strategy(strategy!::Function, env)
+    # build out holdings dataframe with starting holdings (setup)
     ts_holdings = DataFrame()
-    for key in keys(env.starting_holdings)
-        ts_holdings[!, key] = typeof(env.starting_holdings[key])[]
+    ts_holdings[!, "cash"] = env.starting_holdings["cash"]
+
+    for asset in get_subtypes(env, Asset)
+        build_ts_holdings!(get_type(env, asset), asset,env, ts_holdings)
     end
+
+    for key in keys(env.starting_holdings)
+        ts_holdings[!, key] = [starting_holdings[key]] # makes an empty column in the dataFrame
+    end
+    push!(ts_holdings, env.starting_holdings)
     push!(ts_holdings, env.starting_holdings)
 
     # TODO: add value marker to ts_holdings
@@ -236,45 +290,61 @@ function test_strategy(strategy::Function, env)
     for step in 1:(env.N)
 
         # run strategy for each timestep
-        strategy(env, step, ts_holdings)
+        strategy!(env, step, ts_holdings)
         
         # copy prices for next round to change
         push!(ts_holdings, ts_holdings[end, :])
+
+        # update holdings for derivatives
+        update_holdings(
+            for key in ts_holdings
+                update_obj(env, key)
+            end
+        )
 
         # pay/ get interest for time period
         if ts_holdings[step, "cash"] >= 0
             ts_holdings[step+1, "cash"] *= exp(env.data[step, "lend_interest"] / env.timesteps_per_period)
         else
-            ts_holdings[step+1, "cash"] *= exp(env.data[step, "borrow_interest"] / timesteps_per_period)
+            ts_holdings[step+1, "cash"] *= exp(env.data[step, "borrow_interest"] / env.timesteps_per_period)
         end
 
-
-
     end
-
     return ts_holdings
-    
 end
 
-function buy(type::Type{<:BaseAsset}, name, number, env, step, ts_holdings)
+function build_ts_holdings!(::Type{<:BaseAsset}, asset_name, env, ts_holdings)
+    ts_holdings[!, asset_name] = [env.starting_holdings[asset_name]]
+end
+
+function build_ts_holdings!(::Type{<:Derivative}, asset_name, env, ts_holdings)
+    ts_holdings[!, asset_name] = [spzeros(typeof(env.starting_holdings[asset_name]), env.N)]
+    ts_holdings[1, asset_name][1] = env.starting_holdings[asset_name]
+end
+# ----------------- buy and sell functions for use in strategies ----------
+function _buy(type::Type{<:BaseAsset}, name, number, env, step, ts_holdings)
     ts_holdings[step+1, "cash"] -= env.data[step, name] * number 
     ts_holdings[step+1, name] += number
 end
 
-function buy(type::Type{<:Derivative}, name, number, env, step, ts_holdings)
-
+function _buy(type::Type{<:Derivative}, name, number, env, step, ts_holdings)
+    ts_holdings[step+1, "cash"] -= env.data[step, name]
 
 end
 
-function sell(type::Type{<:BaseAsset},name, number, env, step, ts_holdings)
+function _sell(type::Type{<:BaseAsset},name, number, env, step, ts_holdings)
     ts_holdings[step+1, "cash"] += env.data[step, name] * number 
     ts_holdings[step+1, name] -= number
 end
 
+function _sell(type::Type{<:Derivative}, name, number, env, step, ts_holdings)
+
+end
+# ------------------ helpers ofr use in strategies -------------------------
 macro environment_setup(env, step, ts_holdings)
     quote
-        buy(name::AbstractString, number, args...) = buy(get_type(name), name, number, $env, $step, $ts_holdings, args...)
-        sell(name::AbstractString, number, args...) = sell(get_type(name), name, number, $env, $step, $ts_holdings, args...)
+        buy(name::AbstractString, number, args...) = _buy(get_type(name), name, number, $env, $step, $ts_holdings, args...)
+        sell(name::AbstractString, number, args...) = _sell(get_type(name), name, number, $env, $step, $ts_holdings, args...)
     end
 end
 
