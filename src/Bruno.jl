@@ -64,7 +64,7 @@ export find_correlation_coeff, strategy_returns, strategy
 # new ones... just for now...
 export PriceType, StaticPrice, HistoricPrices, HistoricTrait, IsHistoric, NotHistoric, checkhistoric
 export price_vec, underlying, price_history, volatility_history, timesteps_per_period, BaseAsset, Derivative
-export SimulationEnvironment, add_asset, add_variable, add_interest_rate
+export SimulationEnvironment, add_asset!, add_variable!, add_interest_rate!
 export SimVariable, get_type
 
 export time_lag_price
