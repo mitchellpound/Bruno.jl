@@ -16,7 +16,7 @@ using Distributions
         kwargs...
     )
 
-a simulating environment to test trading or hedging strategies for given interest rates and 
+A simulating environment to test trading or hedging strategies for given interest rates and 
 and prices. To be used by providing a new method for the `strategy()` function which defines 
 the trading strategy. 
 
@@ -24,7 +24,7 @@ Returns the dollar cumulative return from the strategy, the time-series of all h
 the strategy, and the updated object array. 
 
 ## Arguments
-- `obj`: financial instrument the trading or hedging strategy runs on
+- `obj`: financial instrument or asset the trading or hedging strategy runs on
 - `pricing_model`: `Model` subtype that defines how to price the `obj`
 - `strategy_type`: `Hedging` subtype that the `strategy()` function dispatches off. Must provide a new subtype for new `strategy()` methods
 - `future_prices`: vector of future prices for the underlying `Widget` asset of obj to run strategy on
@@ -37,11 +37,11 @@ interest is a year, and daily stock data is used, `timesteps_per_period=252`. Mu
 - `widget_count`: amount of underlying `Widget` owned when starting the strategy
 - `pay_int_rate`: the continuous interest rate payed on negative cash balances
 - `hold_return_int_rate`: the continous interest rate earned on positive cash balances
-- `kwargs`: pass through for keyword arguments needed by `price!()` or `strategy()` functions
+- `kwargs`: pass through for keyword arguments needed by `price()` or `strategy()` functions
 
 ## Example
 ```
-# make the Widget and FinancialInstrument to be used
+# make the Asset and FinancialInstrument to be used
 stock = Stock(; prices=[99, 97, 90, 83, 83, 88, 88, 89, 97, 100], name="stock", timesteps_per_period=252)
 call = EuroCallOption(stock, 110; maturity=.5, label="call", risk_free_rate=.02)
 
@@ -175,7 +175,7 @@ end
         kwargs...
     )
 
-a simulating environment to test trading or hedging strategies for multiple financial instruments
+A simulating environment to test trading or hedging strategies for multiple financial instruments
 for given interest rates and prices. To be used by providing a new method for the 
 `strategy()` function which defines the trading strategy. 
 
@@ -203,7 +203,7 @@ Note: dictionary keys must be the `Widget.name` field string for each base asset
 
 ## Example
 ```
-# make the widgets and FinancialInstruments to be used
+# make the assets and FinancialInstruments to be used
 stock = Stock(; prices=[99, 97, 90, 83, 83, 88, 88, 89, 97, 100], name="stock", timesteps_per_period=252)
 stock2 = Stock(; prices=[66, 61, 70, 55, 65, 63, 57, 55, 53, 68], name="stock2", timesteps_per_period=252)
 call = EuroCallOption(stock, 110; maturity=.5, label="call", risk_free_rate=.02)
@@ -765,16 +765,6 @@ end
 
 #-------Custom Price!----------#
 primitive type Expiry <: Model 8 end
-
-# these are extra... really only used for hedging models
-Models.price!(fin_obj::Stock) = fin_obj.prices[end]
-Models.price!(fin_obj::Stock, _::Type{<:Model}) = price!(fin_obj::Stock)
-
-# the payoff of a call option at expiry
-Models.price!(fin_obj::CallOption, _::Type{Expiry}) =
-    max(0, fin_obj.widget.prices[end] - fin_obj.strike_price)
-Models.price!(fin_obj::PutOption, _::Type{Expiry}) =
-    max(0, fin_obj.strike_price - fin_obj.widget.prices[end])
 
 #-------Helper Functions--------#
 function find_correlation_coeff(

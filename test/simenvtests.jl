@@ -36,6 +36,21 @@
 
         #test that volititly is working...
         end
+
+        @testset verbose=true "Derivitive tests" begin
+            m = SimulationEnvironment(10, 252, 5, 100.0)
+            hist_prices = Float64[1:5...]
+            future_prices = Float64[6:15...]
+            add_asset(m, EuroCallOption, hist_prices, future_prices, "test")
+            add_asset(m, Stock, hist_prices, future_prices, "test_2", 5)
+            @test m["test"] == Float64[1:15...]
+            @test m["test_2"] == Float64[1:15...]
+            @test m.starting_holdings["test"] == 0
+            @test m.starting_holdings["test_2"] == 5
+            @test get_type(m, "test") == Stock 
+    
+            #test that volititly is working...
+            end
     end
 
 end

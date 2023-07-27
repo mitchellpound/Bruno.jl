@@ -218,6 +218,8 @@ function add_asset(
 
     # add to holdings dataframe
     env.starting_holdings[name] = starting_holdings
+
+    return
 end
 
 function add_asset(
@@ -266,6 +268,8 @@ function add_asset(
     
     # add to env starting holds
     env.starting_holdings[name] = starting_holdings
+
+    return
 end
 
 # ------------------ Using the strategy ---------------
