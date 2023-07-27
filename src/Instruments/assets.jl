@@ -31,18 +31,22 @@ struct StaticPrice{U,V} <: PriceType
     price::U
     volatility::V
 
-    StaticPrice(price, volatility) = volatility < 0 ? 
-        error("volatility must be non-negative") : 
+    function StaticPrice(price, volatility) 
+        volatility < 0 ? error("volatility must be non-negative") : nothing
+        price <= 0 ? error("price must be non-negative") : nothing
         new{typeof(price), typeof(volatility)}(price, volatility)
+    end
 end
 
 struct HistoricPrices{T, TI} <: PriceType
     prices::Vector{T}
     timesteps_per_period::TI
 
-    HistoricPrices(prices, timesteps_per_period) = timesteps_per_period < 0 ? 
-        error("timesteps_per_period must be non-negative") : 
+    function HistoricPrices(prices, timesteps_per_period) 
+        timesteps_per_period < 0 ? error("timesteps_per_period must be non-negative") : nothing
+        length(prices) < 1 ? error("must give at least 2 prices") : 
         new{eltype(prices), typeof(timesteps_per_period)}(prices, timesteps_per_period)
+    end
 end
 
 HistoricPrices(prices) = HistoricPrices(prices, size(prices)[1])
@@ -144,13 +148,20 @@ function Stock(;prices, volatility = nothing, timesteps_per_period = nothing, na
     if isa(prices, PriceType)
         return Stock(prices, name)
     end
+    if isa(prices, AbstractArray)
+        if volatility !== nothing
+            @warn "If a vector of prices is give, HistoricPrices takes priority and volatility will be ignored"
+        end
+    end
     return Stock(PriceType(prices, volatility, timesteps_per_period), name)
 end
 
 # getter functions
 price_vec(s::Stock) = price_vec(s.prices)
-timesteps_per_period(s::Stock) = timesteps_per_period(s.prices)
 get_volatility(s::Stock) = get_volatility(s.prices)
+get_name(s::Stock) = s.name
+timesteps_per_period(s::Stock) = timesteps_per_period(s.prices)
+
 checkhistoric(s::Stock) = checkhistoric(s.prices)
 volatility_history(s::Stock, window_size) = volatility_history(s.prices, window_size)
 
@@ -169,6 +180,11 @@ Commodity(prices::AbstractArray, timesteps_per_period = size(prices)[1], name = 
 function Commodity(;prices, volatility = nothing, timesteps_per_period = nothing, name = "") 
     if isa(prices, PriceType)
         return Stock(prices, name)
+    end
+    if isa(prices, AbstractArray)
+        if volatility !== nothing
+            @warn "If a vector of prices is give, HistoricPrices takes priority and volatility will be ignored"
+        end
     end
     return Commodity(PriceType(prices, volatility, timesteps_per_period), name)
 end
@@ -190,6 +206,15 @@ function volatility_history(prices::AbstractArray, timesteps_per_period, window_
     end
     return h_volatil
 end
+
+# getter functions
+price_vec(s::Commodity) = price_vec(s.prices)
+get_volatility(s::Commodity) = get_volatility(s.prices)
+get_name(s::Commodity) = s.name
+timesteps_per_period(s::Commodity) = timesteps_per_period(s.prices)
+
+checkhistoric(s::Commodity) = checkhistoric(s.prices)
+volatility_history(s::Commodity, window_size) = volatility_history(s.prices, window_size)
 
 # TODO: Figure out Bond logic/ clean up constructors
 # ---------- Bonds -----------------

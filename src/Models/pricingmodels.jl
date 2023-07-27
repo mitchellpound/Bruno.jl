@@ -2,21 +2,21 @@ export time_lag_price
 using Distributions: Normal, cdf
 using ..Bruno
 
+# Need to dispatch for a single price or a vector or prices
 Bruno.checkhistoric(model::Type{<:Model}) = NotHistoric()
 Bruno.checkhistoric(model::Type{MonteCarlo{MCBootstrap}}) = IsHistoric()
-
-
 
 # price() acts as a getter for PriceTypes and BaseAssets
 price(p::StaticPrice) = p.price
 price(p::HistoricPrices) = p.prices[end]
 price(s::Stock) = price(s.prices)
+price(c::Commodity) = price(c.prices)
 
 # general function to throw error for unimplimented price models
 price(fin_obj, pricing_model; _...) = 
     error("Cannot price $(typeof(fin_obj)) with $(typeof(pricing_model))")
 
-# model to get needed numbers from struct for pure math functions
+# price() using getters to get needed numbers from struct for pure math functions
 """
     price(fin_obj<:CallOption, pricing_model::Type{<:Model}, args...)
 
@@ -24,20 +24,20 @@ Computes the value of a given financial object.
 
 # Syntax
 ```
-price!(fin_obj, PricingModelType, args...)
+price(fin_obj, PricingModelType, args...)
 ```
 key word arguments vary depending on the Pricing Model Type.
 
 # Example
 ```julia
 # create a base asset
-a_stock = Stock(41; volatility=.3)
+a_stock = Stock(41.0, .3)
 
 # create a European call option 
-a_fin_inst = EuroCallOption(a_stock, 40; risk_free_rate=.05) 
+a_fin_inst = EuroCallOption(;underlying=a_stock, strike_price=40, risk_free_rate=.05) 
 
 # add binomial tree call value to the options value dictionary
-price!(a_fin_inst, BinomialTree)  
+price(a_fin_inst, BinomialTree)  
 ```
 """
 price(option::Option, pricing_model::Type{<:Model}; kwargs...) = 
@@ -68,8 +68,8 @@ price(::IsHistoric, option::Option, pricing_model::Type{<:Model}; kwargs...) =
         kwargs...
     )
 
+# functions to implement pricing models with just math (not using struct as input)
 # -------------- Black Scholes pricing model ----------------------------------------------------
-# math needed to price Euro calls/ puts with Black Scholes formula
 """
     price(fin_obj::Option, pricing_model::Type{BlackScholes})
 
@@ -80,9 +80,9 @@ price a European call or put option using the Black Scholes options pricing form
 
 # Examples
 ```julia
-stock = Stock(41; volatility=.3)
-call = EuroCallOption(stock, 40; risk_free_rate=.08, maturity=.25)
-price!(call, BlackScholes)
+stock = Stock(41.0, .3)
+call = EuroCallOption(;underlying=stock, strike_price=40, risk_free_rate=.08, maturity=.25)
+price(call, BlackScholes)
 ```
 """
 function price(::Type{BlackScholes}, option_type::Type{<:CallOption}, S, K, sigma, r, T; delta=0, _...)
@@ -105,7 +105,7 @@ end
 
 # -------------- Binomial Tree pricing model -----------
 """
-    price!(fin_obj::Option, pricing_model::Type{BinomialTree}; kwargs...)
+    price(fin_obj::Option, pricing_model::Type{BinomialTree}; kwargs...)
 
 price a call or put option using the binomial tree pricing method
 
@@ -117,13 +117,13 @@ price a call or put option using the binomial tree pricing method
 # Example
 ```julia
 # create a base asset
-a_stock = Stock(41; volatility=.3)
+a_stock = Stock(41.0, .3)
 
 # create a European call option 
-a_fin_inst = EuroCallOption(a_stock, 40; risk_free_rate=.05) 
+a_fin_inst = EuroCallOption(;underlying=a_stock, strike_price=40, risk_free_rate=.05) 
 
 # add binomial tree call value to the options value dictionary
-price!(a_fin_inst, BinomialTree)  
+price(a_fin_inst, BinomialTree)  
 ```
 """
 function price(::Type{BinomialTree}, option_type::Type{<:EuroCallOption}, s_0, K, sigma, r, T; delta=0, tree_depth=3, _...)
@@ -262,7 +262,7 @@ end
 
 # ----- Price models using Monte Carlo sims ----------
 """
-    price!(fin_obj::Option, MonteCarlo{MonteCarloModel}; kwargs...)
+    price(fin_obj::Option, MonteCarlo{MonteCarloModel}; kwargs...)
 
 computes the option price using Monte Carlo simulation methods with the MonteCarloModel 
 specified. Note: Only European Options call be priced via Monte Carlo methods. 
@@ -283,12 +283,12 @@ specified. Note: Only European Options call be priced via Monte Carlo methods.
 
 # Examples 
 ```julia
-prices = [1,4,3,4,2,5,6,4,7,5];
+prices = Float64[1,4,3,4,2,5,6,4,7,5];
 stock = Stock(prices);
 call = EuroCallOption(stock, 8);
 
-price!(call, MonteCarlo{LogDiffusion}; n_sims=50, sim_size=250)
-price!(call, MonteCarlo{MCBootstrap}; bootstrap_method=CircularBlock, n_sims=10)
+price(call, MonteCarlo{LogDiffusion}; n_sims=50, sim_size=250)
+price(call, MonteCarlo{MCBootstrap}; bootstrap_method=CircularBlock, n_sims=10)
 ```
 """
 function price(::Type{MonteCarlo{LogDiffusion}}, option_type::Type{<:Option}, S, K, sigma, r, T; sim_size=3, n_sims=100, _...)

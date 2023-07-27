@@ -16,7 +16,7 @@ export Bond, Commodity, Stock
 export AmericanCallOption,
     AmericanPutOption, CallOption, EuroCallOption, EuroPutOption, Future, Option, PutOption
 
-export get_volatility, add_price_value
+export get_volatility, add_price_value, get_name
 
 # DataGeneration submodule
 """
