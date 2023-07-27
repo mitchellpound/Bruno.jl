@@ -273,17 +273,12 @@ end
 function test_strategy(strategy!::Function, env)
     # build out holdings dataframe with starting holdings (setup)
     ts_holdings = DataFrame()
-    ts_holdings[!, "cash"] = env.starting_holdings["cash"]
+    ts_holdings[!, "cash"] = [env.starting_holdings["cash"]]
 
     for asset in get_subtypes(env, Asset)
         build_ts_holdings!(get_type(env, asset), asset,env, ts_holdings)
     end
-
-    for key in keys(env.starting_holdings)
-        ts_holdings[!, key] = [starting_holdings[key]] # makes an empty column in the dataFrame
-    end
-    push!(ts_holdings, env.starting_holdings)
-    push!(ts_holdings, env.starting_holdings)
+    push!(ts_holdings, ts_holdings[end, :])
 
     # TODO: add value marker to ts_holdings
 
