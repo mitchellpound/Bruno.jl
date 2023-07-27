@@ -1,4 +1,4 @@
-export SimulationEnvironment, add_asset, add_variable, add_interest_rate
+export SimulationEnvironment, add_asset!, add_variable!, add_interest_rate!
 export SimVariable, get_type
 using DataFrames
 using SparseArrays
@@ -43,7 +43,7 @@ function SimulationEnvironment(
         timesteps_per_period=timesteps_per_period, 
         window_size = window_size, 
         starting_holdings = Dict("cash" => starting_cash))
-        add_interest_rate(env, zeros(Float64, N+window_size)
+        add_interest_rate!(env, zeros(Float64, N+window_size)
     )
     return env
 end
@@ -110,7 +110,7 @@ function Base.getindex(env::SimulationEnvironment, i::DataType)
     env.data[:, t]
 end
 
-Base.setindex!(env::SimulationEnvironment, variable, string) = add_variable(env, variable, string)
+Base.setindex!(env::SimulationEnvironment, variable, string) = add_variable!(env, variable, string)
 
 get_variables(env::SimulationEnvironment) = env[SimVariable]
 get_variable_names(env::SimulationEnvironment) = names(env[SimVariable])
@@ -146,18 +146,18 @@ end
 # -------------- SimulationEnvironment add functions -----------
 # lend interest is interest rate you get on your savings
 # borrow interest is the rate you pay on negative balances
-function add_interest_rate(env::SimulationEnvironment, lend_interest, borrow_interest = lend_interest )
-    add_variable(env, lend_interest, "lend_interest")
-    add_variable(env, borrow_interest, "borrow_interest")
+function add_interest_rate!(env::SimulationEnvironment, lend_interest, borrow_interest = lend_interest )
+    add_variable!(env, lend_interest, "lend_interest")
+    add_variable!(env, borrow_interest, "borrow_interest")
 end
 
-function add_variable(env::SimulationEnvironment, value, name)
+function add_variable!(env::SimulationEnvironment, value, name)
     env.data[!, name] = fill(value, env.N+env.window_size)
     push!(env.coltypes, SimVariable)
 end
 
 # assumes that the last entry is the furthest in the future (last of the simulation)
-function add_variable(env::SimulationEnvironment, var_vec::AbstractArray, name)
+function add_variable!(env::SimulationEnvironment, var_vec::AbstractArray, name)
     @assert length(var_vec)>=env.N "not enough variable entries for simulation"
     length(var_vec) <= env.N + env.window_size ? nothing : var_vec = var_vec[end-env.N-env.window_size+1:end]
 
@@ -176,7 +176,7 @@ function add_variable(env::SimulationEnvironment, var_vec::AbstractArray, name)
 end
 
 # adds a variable that is a function of some other variable or asset
-function add_variable(f::Function, env::SimulationEnvironment, access_name::String, var_name, args...)
+function add_variable!(f::Function, env::SimulationEnvironment, access_name::String, var_name, args...)
     
     # get variables from access_name
     temp = env[access_name]
@@ -185,11 +185,11 @@ function add_variable(f::Function, env::SimulationEnvironment, access_name::Stri
     var_vec = f(temp, args...)
 
     # put the new vector into the SimulationEnvironment
-    add_variable(env, var_vec, var_name)
+    add_variable!(env, var_vec, var_name)
 end
     
 
-function add_asset(
+function add_asset!(
     env::SimulationEnvironment,
     asset_type::Type{<:BaseAsset},
     historic_prices, 
@@ -214,7 +214,7 @@ function add_asset(
     end
     
     # add volatility to variables
-    add_variable(volatility_history, env, name, "$(name)_volatility", env.timesteps_per_period, env.window_size) 
+    add_variable!(volatility_history, env, name, "$(name)_volatility", env.timesteps_per_period, env.window_size) 
 
     # add to holdings dataframe
     env.starting_holdings[name] = starting_holdings
@@ -222,7 +222,7 @@ function add_asset(
     return
 end
 
-function add_asset(
+function add_asset!(
     env::SimulationEnvironment,
     asset_type::Type{<:Derivative}, 
     pricing_model, 
