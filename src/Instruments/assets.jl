@@ -1,3 +1,5 @@
+using Statistics
+using ..Bruno
 # TODO: Add docs
 """
 
@@ -75,6 +77,12 @@ timesteps_per_period(p::PriceType) = p.timesteps_per_period
 
 checkhistoric(::StaticPrice) = NotHistoric()
 checkhistoric(::HistoricPrices) = IsHistoric()
+
+checkhistoric(input::IsHistoric, needs::IsHistoric) = IsHistoric()
+checkhistoric(input::NotHistoric, needs::NotHistoric) = NotHistoric()
+checkhistoric(input::IsHistoric, needs::NotHistoric) = NotHistoric()
+checkhistoric(_::Any, _::Any) = error("not compatible")
+# TODO: make a better error name
 
 get_volatility(p::HistoricPrices) = get_volatility(p.prices, p.timesteps_per_period)
 get_volatility(p::StaticPrice) = p.volatility

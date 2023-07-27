@@ -1,5 +1,10 @@
 export time_lag_price
 using Distributions: Normal, cdf
+using ..Bruno
+
+Bruno.checkhistoric(model::Type{<:Model}) = NotHistoric()
+Bruno.checkhistoric(model::Type{MonteCarlo{MCBootstrap}}) = IsHistoric()
+
 
 
 # price() acts as a getter for PriceTypes and BaseAssets
@@ -12,21 +17,75 @@ price(fin_obj, pricing_model; _...) =
     error("Cannot price $(typeof(fin_obj)) with $(typeof(pricing_model))")
 
 # model to get needed numbers from struct for pure math functions
-price(option::Option, pricing_model::Type{<:Model}, args...) = 
-    price(
+"""
+    price(fin_obj<:CallOption, pricing_model::Type{<:Model}, args...)
+
+Computes the value of a given financial object. 
+
+# Syntax
+```
+price!(fin_obj, PricingModelType, args...)
+```
+key word arguments vary depending on the Pricing Model Type.
+
+# Example
+```julia
+# create a base asset
+a_stock = Stock(41; volatility=.3)
+
+# create a European call option 
+a_fin_inst = EuroCallOption(a_stock, 40; risk_free_rate=.05) 
+
+# add binomial tree call value to the options value dictionary
+price!(a_fin_inst, BinomialTree)  
+```
+"""
+price(option::Option, pricing_model::Type{<:Model}; kwargs...) = 
+    price(checkhistoric(checkhistoric(option), checkhistoric(pricing_model)), option, pricing_model; kwargs...) 
+
+price(::NotHistoric, option::Option, pricing_model::Type{<:Model}; kwargs...) = 
+ price(
         pricing_model, 
         typeof(option), 
         price(option.underlying),
         option.strike_price,
         get_volatility(option.underlying),
         option.risk_free_rate, 
-        option.maturity,
-        args...
+        option.maturity;
+        kwargs...
+    )
+
+price(::IsHistoric, option::Option, pricing_model::Type{<:Model}; kwargs...) = 
+    price(
+        pricing_model, 
+        typeof(option), 
+        price_vec(option.underlying),
+        option.strike_price,
+        get_volatility(option.underlying),
+        option.risk_free_rate, 
+        option.maturity;
+        timesteps_per_period = timesteps_per_period(option),
+        kwargs...
     )
 
 # -------------- Black Scholes pricing model ----------------------------------------------------
 # math needed to price Euro calls/ puts with Black Scholes formula
-function price(::Type{BlackScholes}, option_type::Type{<:CallOption}, S, K, sigma, r, T, delta=0)
+"""
+    price(fin_obj::Option, pricing_model::Type{BlackScholes})
+
+price a European call or put option using the Black Scholes options pricing formula
+
+# Arguments
+`fin_obj::Option`: the call or put option to be priced 
+
+# Examples
+```julia
+stock = Stock(41; volatility=.3)
+call = EuroCallOption(stock, 40; risk_free_rate=.08, maturity=.25)
+price!(call, BlackScholes)
+```
+"""
+function price(::Type{BlackScholes}, option_type::Type{<:CallOption}, S, K, sigma, r, T; delta=0, _...)
     d1 =
         (log(S / K) + (r + -delta + (sigma^2 / 2)) * T) / 
         (sigma * sqrt(T))
@@ -35,17 +94,39 @@ function price(::Type{BlackScholes}, option_type::Type{<:CallOption}, S, K, sigm
         K * exp(-r * T) * cdf(Normal(), d2)
 end
 
-function price(::Type{BlackScholes}, option_type::Type{<:PutOption}, S, K, sigma, r, T, delta=0)
+function price(::Type{BlackScholes}, option_type::Type{<:PutOption}, S, K, sigma, r, T; delta=0, _...)
     d1 =
         (log(S / K) + (r + -delta + (sigma^2 / 2)) * T) / 
         (sigma * sqrt(T))
     d2 = d1 - sigma * sqrt(T)
-    return -S * exp(-delta * T) * cdf(Normal(), -d1) +
-        K * exp(-r * T) * cdf(Normal(), -d2)
+    return  K * exp(-r * T) * cdf(Normal(), -d2) - 
+        S * exp(-delta * T) * cdf(Normal(), -d1)
 end
 
 # -------------- Binomial Tree pricing model -----------
-function price(::Type{BinomialTree}, option_type::Type{<:EuroCallOption}, s_0, K, sigma, r, T, delta=0, tree_depth=3)
+"""
+    price!(fin_obj::Option, pricing_model::Type{BinomialTree}; kwargs...)
+
+price a call or put option using the binomial tree pricing method
+
+# Arguments
+- `fin_obj::Option`: the call or put option to be priced 
+- `tree_depth`: number of levels to the binomial tree. Default 3.
+- `delta`: the continuous dividend rate. Default 0.
+
+# Example
+```julia
+# create a base asset
+a_stock = Stock(41; volatility=.3)
+
+# create a European call option 
+a_fin_inst = EuroCallOption(a_stock, 40; risk_free_rate=.05) 
+
+# add binomial tree call value to the options value dictionary
+price!(a_fin_inst, BinomialTree)  
+```
+"""
+function price(::Type{BinomialTree}, option_type::Type{<:EuroCallOption}, s_0, K, sigma, r, T; delta=0, tree_depth=3, _...)
     #=
     EURO OPTION
     tree_depth = the depth of the tree
@@ -73,7 +154,7 @@ function price(::Type{BinomialTree}, option_type::Type{<:EuroCallOption}, s_0, K
     return exp(-r * T) * c
 end
 
-function price(::Type{BinomialTree}, option_type::Type{<:AmericanCallOption}, s_0, K, sigma, r, T, delta=0, tree_depth=3)
+function price(::Type{BinomialTree}, option_type::Type{<:AmericanCallOption}, s_0, K, sigma, r, T; delta=0, tree_depth=3, _...)
 
     dt = T / tree_depth
 
@@ -105,74 +186,9 @@ function price(::Type{BinomialTree}, option_type::Type{<:AmericanCallOption}, s_
     return a_vector[1]
 end
 
+function price(::Type{BinomialTree}, option_type::Type{<:EuroPutOption}, s_0, K, sigma, r, T; delta=0, tree_depth=3, _...)
 
-# TODO: Figure out if we need this still
-# price(::BlackScholes, option_type::Type{<:PutOption}, S::AbstractArray, K, sigma, r, T, delta=0) = 
-#     price(BlackScholes(), option_type, S[end], K, sigma, r, T, delta)
-# price(::BlackScholes, option_type::Type{<:CallOption}, S::AbstractArray, K, sigma, r, T, delta=0) = 
-#     price(BlackScholes(), option_type, S[end], K, sigma, r, T, delta)
-
-#TODO: Expose all math and create dispatch functions for all pricing methods
-"""
-    price!(fin_obj<:CallOption, pricing_model::Type{<:Model};kwargs...)
-
-Computes the value of a given financial object. 
-
-# Syntax
-```
-price!(fin_obj, PricingModelType; kwargs...)
-```
-key word arguments vary depending on the Pricing Model Type.
-
-# Example
-```julia
-# create a base asset
-a_stock = Stock(41; volatility=.3)
-
-# create a European call option 
-a_fin_inst = EuroCallOption(a_stock, 40; risk_free_rate=.05) 
-
-# add binomial tree call value to the options value dictionary
-price!(a_fin_inst, BinomialTree)  
-```
-"""
-
-
-"""
-    price!(fin_obj::Option, pricing_model::Type{BinomialTree}; kwargs...)
-
-price a call or put option using the binomial tree pricing method
-
-# Arguments
-- `fin_obj::Option`: the call or put option to be priced 
-- `tree_depth`: number of levels to the binomial tree. Default 3.
-- `delta`: the continuous dividend rate. Default 0.
-
-# Example
-```julia
-# create a base asset
-a_stock = Stock(41; volatility=.3)
-
-# create a European call option 
-a_fin_inst = EuroCallOption(a_stock, 40; risk_free_rate=.05) 
-
-# add binomial tree call value to the options value dictionary
-price!(a_fin_inst, BinomialTree)  
-```
-"""
-
-function price!(
-    fin_obj::EuroPutOption,
-    pricing_model::Type{BinomialTree};
-    tree_depth = 3,
-    delta = 0,
-    _...
-)
-    r = fin_obj.risk_free_rate
-    strike_price = fin_obj.strike_price
-    s_0 = last(fin_obj.widget.prices)
-    sigma = fin_obj.widget.volatility
-    dt = fin_obj.maturity / tree_depth
+    dt = T / tree_depth
 
     u = get_u(r, delta, dt, sigma)  # up movement 
     d = get_d(r, delta, dt, sigma)  # down movement
@@ -180,40 +196,29 @@ function price!(
 
     c = 0
     # value of the call is a weighted average of the values at each terminal node multiplied by the corresponding probability value
-    for k = tree_depth:-1:0
+    for i = tree_depth:-1:0
         p_star =
-            (factorial(tree_depth) / (factorial(tree_depth - k) * factorial(k))) *
-            p^k *
-            (1 - p)^(tree_depth - k)
-        term_val = s_0 * u^k * d^(tree_depth - k)
-        c += max(strike_price - term_val, 0) * p_star
+            (factorial(tree_depth) / (factorial(tree_depth - i) * factorial(i))) *
+            p^i *
+            (1 - p)^(tree_depth - i)
+        term_val = s_0 * u^i * d^(tree_depth - i)
+        c += max(K - term_val, 0) * p_star
     end
-    value = exp(-r * fin_obj.maturity) * c
-    fin_obj.values_library["BinomialTree"] =
-        Dict("value" => value, "depth" => tree_depth, "delta" => delta)
+    value = exp(-r * T) * c
     return value
 
 end
 
-function price!(
-    fin_obj::AmericanPutOption,
-    pricing_model::Type{BinomialTree};
-    tree_depth = 3,
-    delta = 0,
-    _...
-)
-    r = fin_obj.risk_free_rate
-    strike_price = fin_obj.strike_price
-    s_0 = last(fin_obj.widget.prices)
-    sigma = fin_obj.widget.volatility
-    dt = fin_obj.maturity / tree_depth
+function price(::Type{BinomialTree}, option_type::Type{<:AmericanPutOption}, s_0, strike_price, sigma, r, T; delta=0, tree_depth=3, _...)
+
+    dt = T / tree_depth
 
     u = get_u(r, delta, dt, sigma)  # up movement 
     d = get_d(r, delta, dt, sigma)  # down movement
     p = get_p(r, dt, u, d, delta)  # risk neutral probability of an up move
 
     # Get terminal node p*
-    a_vector = zeros(valtype(valtype(fin_obj.values_library)), tree_depth + 1)
+    a_vector = zeros(typeof(s_0), tree_depth + 1)
     for k = tree_depth:-1:0
         a_vector[tree_depth-k+1] = max(strike_price - s_0 * u^k * d^(tree_depth - k), 0)
     end
@@ -239,8 +244,6 @@ function price!(
 
     end
 
-    fin_obj.values_library["BinomialTree"] =
-        Dict("value" => to_return, "depth" => tree_depth, "delta" => delta)
     return to_return
 end
 
@@ -257,65 +260,7 @@ function get_d(r, delta, dt, sigma)
     exp((r - delta) * dt - sigma * sqrt(dt))
 end
 
-
-# ----- Price models for call and put options using BlackScholes
-"""
-    price!(fin_obj::Option, pricing_model::Type{BlackScholes})
-
-price a European call or put option using the Black Scholes options pricing formula
-
-# Arguments
-`fin_obj::Option`: the call or put option to be priced 
-
-# Examples
-```julia
-stock = Stock(41; volatility=.3)
-call = EuroCallOption(stock, 40; risk_free_rate=.08, maturity=.25)
-price!(call, BlackScholes)
-```
-"""
-
-
-# function price!(fin_obj::EuroCallOption{<:Widget}, pricing_model::Type{BlackScholes}; _...)
-#     c1 = log(fin_obj.widget.prices[end] / fin_obj.strike_price)
-#     a1 = fin_obj.widget.volatility * sqrt(fin_obj.maturity)
-#     d1 =
-#         (
-#             c1 +
-#             (fin_obj.risk_free_rate + (fin_obj.widget.volatility^2 / 2)) * fin_obj.maturity
-#         ) / a1
-#     d2 = d1 - a1
-#     value =
-#         fin_obj.widget.prices[end] * cdf(Normal(), d1) -
-#         fin_obj.strike_price *
-#         exp(-fin_obj.risk_free_rate * fin_obj.maturity) *
-#         cdf(Normal(), d2)
-
-#     fin_obj.values_library["BlackScholes"] = Dict("value" => value)
-#     return value
-# end
-
-
-function price!(fin_obj::EuroPutOption{<:Asset}, pricing_model::Type{BlackScholes}; _...)
-    c1 = log(fin_obj.asset.prices[end] / fin_obj.strike_price)
-    a1 = fin_obj.asset.volatility * sqrt(fin_obj.maturity)
-    d1 =
-        (
-            c1 +
-            (fin_obj.risk_free_rate + (fin_obj.asset.volatility^2 / 2)) * fin_obj.maturity
-        ) / a1
-    d2 = d1 - a1
-    value =
-        fin_obj.strike_price *
-        exp(-fin_obj.risk_free_rate * fin_obj.maturity) *
-        cdf(Normal(), -d2) - fin_obj.widget.prices[end] * cdf(Normal(), -d1)
-
-    fin_obj.values_library["BlackScholes"] = Dict("value" => value)
-    return value
-end
-
-
-# ----- Price models using Monte Carlo sims
+# ----- Price models using Monte Carlo sims ----------
 """
     price!(fin_obj::Option, MonteCarlo{MonteCarloModel}; kwargs...)
 
@@ -346,83 +291,57 @@ price!(call, MonteCarlo{LogDiffusion}; n_sims=50, sim_size=250)
 price!(call, MonteCarlo{MCBootstrap}; bootstrap_method=CircularBlock, n_sims=10)
 ```
 """
-function price!(
-    fin_obj::Option,
-    pricing_model::Type{MonteCarlo{LogDiffusion}};
-    n_sims = 100,
-    sim_size = 100,
-    _...
-)
-
-    dt = fin_obj.maturity / sim_size
+function price(::Type{MonteCarlo{LogDiffusion}}, option_type::Type{<:Option}, S, K, sigma, r, T; sim_size=3, n_sims=100, _...)
+    dt = T / sim_size
     # create the data to be used in the analysis 
     data_input = LogDiffInput(;
         nTimeStep = sim_size,
-        initial = fin_obj.widget.prices[end],
-        volatility = fin_obj.widget.volatility * sqrt(fin_obj.maturity),
-        drift = fin_obj.risk_free_rate * fin_obj.maturity,
+        initial = S,
+        volatility = sigma * sqrt(T),
+        drift = r * T
     )
     final_prices = makedata(data_input, n_sims)[end, :]
     # check for exercise or not
-    value =
-        sum(payoff(fin_obj, final_prices, fin_obj.strike_price)) / n_sims *
-        exp(-fin_obj.risk_free_rate * fin_obj.maturity)
-
-    fin_obj.values_library["MC_LogDiffusion"] =
-        Dict("value" => value, "n_sims" => n_sims, "sim_size" => sim_size)
-    return value
+    
+    return sum(payoff(option_type, final_prices, K)) / n_sims * exp(-r * T)
 end
 
 
-function price!(
-    fin_obj::Option,
-    pricing_model::Type{MonteCarlo{MCBootstrap}};
-    bootstrap_method = Stationary,
-    n_sims = 100,
-    _...
-)
-    length(fin_obj.widget.prices) >= 2 ? 
-    nothing : 
-    error("Must have multiple historical prices to bootstrap from")
-
-    fin_obj.widget.timesteps_per_period > 0 ? 
-    nothing : 
-    error("Cannot have a static base asset. timesteps_per_period must be positive")
-
+#TODO: Add check for historic stuff
+    # error("Must have multiple historical prices to bootstrap from")
+function price(::Type{MonteCarlo{MCBootstrap}}, option_type::Type{<:Option}, prices, K, sigma, r, T; timesteps_per_period, bootstrap_method=Stationary, n_sims=100, _...)
     # create the data to be used in analysis
     returns = [
         log(
             1 +
-            (fin_obj.widget.prices[i+1] - fin_obj.widget.prices[i]) /
-            fin_obj.widget.prices[i],
-        ) for i = 1:(size(fin_obj.widget.prices)[1]-1)
+            (prices[i+1] - prices[i]) /
+            prices[i],
+        ) for i = 1:(size(prices)[1]-1)
     ]
-
 
     data_input =
         BootstrapInput(returns, bootstrap_method; 
-            n=fin_obj.widget.timesteps_per_period - 1
+            n=(timesteps_per_period - 1)
         )
     data = makedata(data_input, n_sims)
     final_prices = [
-        fin_obj.widget.prices[end] * exp(sum(data[:, i]) * fin_obj.maturity) for
+        prices[end] * exp(sum(data[:, i]) * T) for
         i = 1:n_sims
     ]
     # calculate the mean present value of the runs
     value =
-        sum(payoff(fin_obj, final_prices, fin_obj.strike_price)) / n_sims *
-        exp(-fin_obj.risk_free_rate * fin_obj.maturity)
+        sum(payoff(option_type, final_prices, K)) / n_sims *
+        exp(-r * T)
 
-    fin_obj.values_library["MC_Bootstrap{$(bootstrap_method)}"] =
-        Dict("value" => value, "n_sims" => n_sims)
     return value
 end
 
-function payoff(type::CallOption, final_prices, strike_price)
+# helper functions
+function payoff(type::Type{<:CallOption}, final_prices, strike_price)
     max.(final_prices .- strike_price, 0)
 end
 
-function payoff(type::PutOption, final_prices, strike_price)
+function payoff(type::Type{<:PutOption}, final_prices, strike_price)
     max.(strike_price .- final_prices, 0)
 end
 

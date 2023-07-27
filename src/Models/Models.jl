@@ -21,7 +21,7 @@ primitive type StockPrice <: Model 8 end
 
 include("pricingmodels.jl")
 
-export price!, price, b_tree
+export price, price, b_tree
 export BinomialTree, BlackScholes, Model, StockPrice
 export MonteCarlo, MonteCarloModel, LogDiffusion, MCBootstrap
 

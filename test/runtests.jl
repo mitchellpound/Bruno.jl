@@ -12,7 +12,7 @@ using LinearAlgebra
 # include("bootstraptests.jl")
 # #include("factorytest.jl")
 
-# include("pricingmodeltests.jl")
+include("pricingmodeltests.jl")
 
 # include("hedgingtests.jl")
-include("simenvtests.jl")
+# include("simenvtests.jl")

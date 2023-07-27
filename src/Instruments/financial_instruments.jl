@@ -146,7 +146,7 @@ kwargs= Dict(:widget=>stock, :strike_price=>10, :maturity=>1, :risk_free_rate=>.
 EuroPutOption(;kwargs...)
 ```
 """
-Base.@kwdef struct EuroPutOption{T<:Asset,S} <: CallOption{T}
+Base.@kwdef struct EuroPutOption{T<:Asset,S} <: PutOption{T}
     underlying::T
     strike_price::S = price(underlying)
     maturity::S = 1

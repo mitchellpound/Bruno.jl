@@ -10,7 +10,7 @@ abstract type Hedging end
 primitive type Naked <: Hedging 8 end
 primitive type RebalanceDeltaHedge <: Hedging 8 end
 primitive type StaticDeltaHedge <: Hedging 8 end
-include("hedging.jl")
+# include("hedging.jl")
 
 include("strategy.jl")
 include("sim_env.jl")
