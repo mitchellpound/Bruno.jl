@@ -200,6 +200,7 @@ for st = (:EuroCallOption, :AmericanCallOption, :EuroPutOption, :AmericanPutOpti
     end)
 end
 
+get_name(d::Derivative) = d.label
 # TODO: Fix/ implement these more
 # ------ Type system for futures: subtype of FinancialInstrument ------
 """

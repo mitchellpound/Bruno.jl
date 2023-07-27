@@ -153,7 +153,8 @@ end
 
 function add_variable!(env::SimulationEnvironment, value, name)
     env.data[!, name] = fill(value, env.N+env.window_size)
-    push!(env.coltypes, SimVariable)
+    env.coltypes[name] = SimVariable
+    push!(env.typecols[SimVariable], name)
 end
 
 # assumes that the last entry is the furthest in the future (last of the simulation)
@@ -188,6 +189,8 @@ function add_variable!(f::Function, env::SimulationEnvironment, access_name::Str
     add_variable!(env, var_vec, var_name)
 end
     
+add_asset!(env::SimulationEnvironment, asset::BaseAsset, future_prices, starting_holdings = 0) = 
+    add_asset!(env, typeof(asset), price_vec(asset), future_prices, get_name(asset), starting_holdings)
 
 function add_asset!(
     env::SimulationEnvironment,
@@ -220,6 +223,38 @@ function add_asset!(
     env.starting_holdings[name] = starting_holdings
 
     return
+end
+
+function add_asset!(env, derivative::Derivative, pricing_model, starting_holdings = 0; future_prices = [], underlying_starting_holdings = 0)
+    # if the underlying asset is already in the SimulationEnvironment
+    if derivative.underlying.name in names(env.data)
+        add_asset!(
+            env, 
+            typeof(derivative), 
+            pricing_model, 
+            derivative.underlying.name, 
+            derivative.strike_price, 
+            derivative.maturity, 
+            derivative.label, 
+            starting_holdings
+        )
+    # need to add unerlying as well as 
+    else
+        if isempty(future_prices)
+            throw(ArgumentError("Future prices must be provided for a new stock"))
+        end
+        add_asset!(env, derivative.underlying, future_prices, underlying_starting_holdings)
+        add_asset!(
+            env, 
+            typeof(derivative), 
+            pricing_model, 
+            derivative.underlying.name, 
+            derivative.strike_price, 
+            derivative.maturity, 
+            derivative.label, 
+            starting_holdings
+        )
+    end
 end
 
 function add_asset!(
