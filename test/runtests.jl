@@ -15,4 +15,4 @@ include("bootstraptests.jl")
 include("pricingmodeltests.jl")
 
 # include("hedgingtests.jl")
-# include("simenvtests.jl")
+include("simenvtests.jl")

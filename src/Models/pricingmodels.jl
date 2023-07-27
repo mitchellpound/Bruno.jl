@@ -435,7 +435,6 @@ function time_lag_price(
     # option_prices = Array{typeof(price)}(undef, n_steps)
     option_prices = zeros(Float64, n_steps)
     maturity_vec = [max(0, T - (i / timesteps_per_period)) for i in 0:n_steps-1]
-    print(maturity_vec)
     for i in 1:n_steps
         if maturity_vec[i] == 0
             option_prices[i] = 0
