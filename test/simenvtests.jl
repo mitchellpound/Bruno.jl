@@ -103,4 +103,22 @@ end # Env setup tests
 
 end
 
+@testset verbose=true "Value tracker tests" begin
+    # set up environment
+    env = SimulationEnvironment(10, 252, 5, 100.0)
+    hist_prices = Float64[1:5...]
+    stock = Stock(hist_prices, 252, "stock")
+    call = EuroCallOption(;underlying=stock, strike_price=10, label="call")
+    future_prices = Float64[6:15...]
+    add_asset!(env, call, BlackScholes; future_prices=future_prices)
+
+    # define strategy
+    function strat(env, step, ts_holdings)
+        @environment_setup env step ts_holdings
+        if step == 1
+            buy("stock", 1)
+        end
+    end
+
+end
 end # SimulationEnvironment tests

@@ -1,5 +1,6 @@
 export SimulationEnvironment, add_asset!, add_variable!, add_interest_rate!
-export SimVariable, get_type, get_subtypes, build_ts_holdings!
+export SimVariable, get_type, get_subtypes, build_ts_holdings!, @environment_setup
+export test_strategy
 using DataFrames
 using SparseArrays
 
@@ -236,7 +237,7 @@ function add_asset!(
     # add to holdings dataframe
     env.starting_holdings[name] = starting_holdings
 
-    return "Rat 225"
+    return 
 end
 
 function add_asset!(env, derivative::Derivative, pricing_model, starting_holdings = 0; future_prices = [], underlying_starting_holdings = 0)
@@ -269,7 +270,7 @@ function add_asset!(env, derivative::Derivative, pricing_model, starting_holding
             starting_holdings
         )
     end
-    return "Rat 258"
+    return 
 end
 
 function add_asset!(
@@ -328,6 +329,7 @@ function test_strategy(strategy!::Function, env)
     # build out holdings dataframe with starting holdings (setup)
     ts_holdings = DataFrame()
     ts_holdings[!, "cash"] = [env.starting_holdings["cash"]]
+    ts_holdings[!, "value"] = [env.starting_holdings["cash"]]
 
     for asset in get_subtypes(env, Asset)
         build_ts_holdings!(get_type(env, asset), asset,env, ts_holdings)
@@ -342,15 +344,13 @@ function test_strategy(strategy!::Function, env)
         strategy!(env, step, ts_holdings)
         
         # copy prices for next round to change
-        # TODO: MAKE SURE THIS IS A COPY... NOT SHARING POINTERS
         push!(ts_holdings, deepcopy(ts_holdings[end, :]))
 
-        # update holdings for derivatives
-        update_holdings(
-            for key in ts_holdings
-                update_obj(env, key)
-            end
-        )
+        # update value tracker in ts_holdings
+        ts_holdings[step+1, "value"] = ts_holdings[step+1, "cash"]
+        for asset_name in get_subtypes(env, Asset)
+            ts_holdings[step+1, "value"] +=_get_value(get_type(env, asset_name), asset_name, env, ts_holdings, step)
+        end
 
         # pay/ get interest for time period
         if ts_holdings[step, "cash"] >= 0
@@ -370,6 +370,21 @@ end
 function build_ts_holdings!(::Type{<:Derivative}, asset_name, env, ts_holdings)
     ts_holdings[!, asset_name] = [spzeros(typeof(env.starting_holdings[asset_name]), env.N)]
     ts_holdings[1, asset_name][1] = env.starting_holdings[asset_name]
+end
+
+function _get_value(type::Type{<:BaseAsset}, asset_name, env, ts_holdings, step)
+    env[asset_name, step] * ts_holdings[step+1, asset_name]
+end
+
+function _get_value(type::Type{<:Derivative}, asset_name, env, ts_holdings, step)
+    indexes = findall(!iszero, ts_holdings[step+1, asset_name])
+    value = 0
+    for index in indexes
+        offset = step - index + 1
+        # price * number owned
+        value += env[asset_name, step][offset] * ts_holdings[step+1, asset_name][index]
+    end
+    return value
 end
 # ----------------- buy and sell functions for use in strategies ----------
 function _buy(type::Type{<:BaseAsset}, name, number, env, step, ts_holdings)
@@ -426,11 +441,18 @@ end
 # ------------------ helpers ofr use in strategies -------------------------
 macro environment_setup(env, step, ts_holdings)
     quote
-        buy(name::AbstractString, number, offset=0; kwargs...) = _buy(get_type(name), name, number, $env, $step, $ts_holdings; kwargs...)
-        sell(name::AbstractString, number; kwargs...) = _sell(get_type(name), name, number, $env, $step, $ts_holdings; kwargs...)
-        sell(name::AbstractString, number, offset; kwargs...) = _sell(get_type(name), name, number, $env, $step, $ts_holdings, offset; kwargs...)
-        
+        buy(name::AbstractString, number, offset=0; kwargs...) = Bruno.BackTest._buy(get_type($env, name), name, number, $env, $step, $ts_holdings; kwargs...)
+        sell(name::AbstractString, number; kwargs...) = Bruno.BackTest._sell(get_type($env, name), name, number, $env, $step, $ts_holdings; kwargs...)
+        sell(name::AbstractString, number, offset; kwargs...) = Bruno.BackTest._sell(get_type($env, name), name, number, $env, $step, $ts_holdings, offset; kwargs...)
     end
+end
+
+function func_environment_setup(env, step, ts_holdings)
+    eval(quote
+        buy(name::AbstractString, number, offset=0; kwargs...) = Bruno.BackTest._buy(get_type($env, name), name, number, $env, $step, $ts_holdings; kwargs...)
+        sell(name::AbstractString, number; kwargs...) = Bruno.BackTest._sell(get_type($env, name), name, number, $env, $step, $ts_holdings; kwargs...)
+        sell(name::AbstractString, number, offset; kwargs...) = Bruno.BackTest._sell(get_type($env, name), name, number, $env, $step, $ts_holdings, offset; kwargs...)
+    end)
 end
 
 function assign_variables(env::SimulationEnvironment, step, names)

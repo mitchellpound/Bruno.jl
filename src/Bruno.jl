@@ -65,7 +65,8 @@ export find_correlation_coeff, strategy_returns, strategy
 export PriceType, StaticPrice, HistoricPrices, HistoricTrait, IsHistoric, NotHistoric, checkhistoric
 export price_vec, underlying, price_history, volatility_history, timesteps_per_period, BaseAsset, Derivative
 export SimulationEnvironment, add_asset!, add_variable!, add_interest_rate!
-export SimVariable, get_type, get_subtypes, build_ts_holdings!
+export SimVariable, get_type, get_subtypes, build_ts_holdings!, @environment_setup
+export test_strategy
 
 export time_lag_price
 end # end Bruno module 
