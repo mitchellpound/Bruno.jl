@@ -376,9 +376,10 @@ function _buy(type::Type{<:BaseAsset}, name, number, env, step, ts_holdings)
     ts_holdings[step+1, name] += number
 end
 
-function _buy(type::Type{<:Derivative}, name, number, env, step, ts_holdings)
-    ts_holdings[step+1, "cash"] -= env.data[step, name]
-
+function _buy(type::Type{<:Derivative}, name, number, env, step, ts_holdings, offset)
+    # offset is a refrence to how far in the past you bought a contract. A zero day offset means today.
+    ts_holdings[step+1, "cash"] -= env[name, step][offset + 1] * number
+    ts_holdings[step+1, name][step-offset] += number
 end
 
 function _sell(type::Type{<:BaseAsset},name, number, env, step, ts_holdings)
@@ -386,14 +387,23 @@ function _sell(type::Type{<:BaseAsset},name, number, env, step, ts_holdings)
     ts_holdings[step+1, name] -= number
 end
 
+# sell function to sell up to the number, starting with oldest
 function _sell(type::Type{<:Derivative}, name, number, env, step, ts_holdings)
 
+end
+
+# sell the whole number at a given offset 
+function _sell(type::Type{<:Derivative}, name, number, env, step, ts_holdings, offset)
+    ts_holdings[step+1, "cash"] += env[name, step][offset + 1] * number
+    ts_holdings[step+1, name][step - offset] += number
 end
 # ------------------ helpers ofr use in strategies -------------------------
 macro environment_setup(env, step, ts_holdings)
     quote
-        buy(name::AbstractString, number, args...) = _buy(get_type(name), name, number, $env, $step, $ts_holdings, args...)
-        sell(name::AbstractString, number, args...) = _sell(get_type(name), name, number, $env, $step, $ts_holdings, args...)
+        buy(name::AbstractString, number, offset=0; kwargs...) = _buy(get_type(name), name, number, $env, $step, $ts_holdings; kwargs...)
+        sell(name::AbstractString, number; kwargs...) = _sell(get_type(name), name, number, $env, $step, $ts_holdings; kwargs...)
+        sell(name::AbstractString, number, offset; kwargs...) = _sell(get_type(name), name, number, $env, $step, $ts_holdings, offset; kwargs...)
+        
     end
 end
 
