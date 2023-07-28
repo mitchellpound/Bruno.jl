@@ -53,6 +53,54 @@
         end
     end
 
+end # Env setup tests
+
+@testset verbose=true "Buy/sell tests" begin
+    env = SimulationEnvironment(10, 252, 5, 100.0)
+    hist_prices = Float64[1:5...]
+    stock = Stock(hist_prices, 252, "stock")
+    call = EuroCallOption(;underlying=stock, strike_price=10, label="call")
+    future_prices = Float64[6:15...]
+    add_asset!(env, call, BlackScholes; future_prices=future_prices)
+        
+    # setting up ts_holdings outside of a strategy setting 
+    ts_holdings = DataFrame()
+    ts_holdings[!, "cash"] = [env.starting_holdings["cash"]]
+
+    for asset in get_subtypes(env, Asset)
+        build_ts_holdings!(get_type(env, asset), asset,env, ts_holdings)
+    end
+    push!(ts_holdings, deepcopy(ts_holdings[end, :]))
+
+    # buying 1 call on day 1
+    Bruno.BackTest._buy(typeof(call), "call", 1, env, 1, ts_holdings, 0)
+
+    # moving on until day 5
+    for _ in 1:4
+        push!(ts_holdings, deepcopy(ts_holdings[end, :]))
+    end
+    
+    # buy 2 calls issued 2 days ago on day 5
+    Bruno.BackTest._buy(typeof(call), "call", 2, env, 5, ts_holdings, 2)
+
+    # step forward one day
+    push!(ts_holdings, deepcopy(ts_holdings[end, :]))
+    
+    # buy 3 calls on day 6
+    Bruno.BackTest._buy(typeof(call), "call", 3, env, 6, ts_holdings, 0)
+    
+    # step forward one day
+    push!(ts_holdings, deepcopy(ts_holdings[end, :]))
+
+    # sell 2 calls issued on day 3 on day 7 - to negate 2nd buy
+    Bruno.BackTest._sell(typeof(call), "call", 2, env, 7, ts_holdings, 4)
+
+    # step forward one day
+    push!(ts_holdings, deepcopy(ts_holdings[end, :]))
+
+    # complicated sell. Sell 5 on day 8 using FIFO
+    Bruno.BackTest._sell(typeof(call), "call", 5, env, 8, ts_holdings)
+
 end
 
 end # SimulationEnvironment tests

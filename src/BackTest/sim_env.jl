@@ -1,5 +1,5 @@
 export SimulationEnvironment, add_asset!, add_variable!, add_interest_rate!
-export SimVariable, get_type
+export SimVariable, get_type, get_subtypes, build_ts_holdings!
 using DataFrames
 using SparseArrays
 
@@ -332,7 +332,7 @@ function test_strategy(strategy!::Function, env)
     for asset in get_subtypes(env, Asset)
         build_ts_holdings!(get_type(env, asset), asset,env, ts_holdings)
     end
-    push!(ts_holdings, ts_holdings[end, :])
+    push!(ts_holdings, deepcopy(ts_holdings[end, :]))
 
     # TODO: add value marker to ts_holdings
 
@@ -342,7 +342,8 @@ function test_strategy(strategy!::Function, env)
         strategy!(env, step, ts_holdings)
         
         # copy prices for next round to change
-        push!(ts_holdings, ts_holdings[end, :])
+        # TODO: MAKE SURE THIS IS A COPY... NOT SHARING POINTERS
+        push!(ts_holdings, deepcopy(ts_holdings[end, :]))
 
         # update holdings for derivatives
         update_holdings(
@@ -372,7 +373,7 @@ function build_ts_holdings!(::Type{<:Derivative}, asset_name, env, ts_holdings)
 end
 # ----------------- buy and sell functions for use in strategies ----------
 function _buy(type::Type{<:BaseAsset}, name, number, env, step, ts_holdings)
-    ts_holdings[step+1, "cash"] -= env.data[step, name] * number 
+    ts_holdings[step+1, "cash"] -= env[name, step] * number 
     ts_holdings[step+1, name] += number
 end
 
@@ -380,6 +381,9 @@ function _buy(type::Type{<:Derivative}, name, number, env, step, ts_holdings, of
     # offset is a refrence to how far in the past you bought a contract. A zero day offset means today.
     ts_holdings[step+1, "cash"] -= env[name, step][offset + 1] * number
     ts_holdings[step+1, name][step-offset] += number
+
+    # make sure that the sparce array doesn't contain zeros
+    dropzeros!(ts_holdings[step+1, name])
 end
 
 function _sell(type::Type{<:BaseAsset},name, number, env, step, ts_holdings)
@@ -389,13 +393,35 @@ end
 
 # sell function to sell up to the number, starting with oldest
 function _sell(type::Type{<:Derivative}, name, number, env, step, ts_holdings)
+    indexes = findall(!iszero, ts_holdings[step+1, name])
+    for index in indexes  # loop through the values in calls_owned
+        num_at_index = ts_holdings[step+1, name][index]
+        if num_at_index > 0 # skip over negative holdings (already wrote contracts there)
+            if number >= num_at_index  # Check if the value is greater if so sell and cont
+                _sell(type, name, num_at_index, env, step, ts_holdings, step-index)
+                number -= num_at_index
+                if number == 0
+                    break
+                end
+            else
+                _sell(type, name, number, env, step, ts_holdings, step-index)
+            end
+        end
+    end
+    # if you have leftovers
+    _sell(type, name, number, env, step, ts_holdings, 0)
 
+    # make sure that the sparce array doesn't contain zeros
+    dropzeros!(ts_holdings[step+1, name])
 end
 
 # sell the whole number at a given offset 
 function _sell(type::Type{<:Derivative}, name, number, env, step, ts_holdings, offset)
     ts_holdings[step+1, "cash"] += env[name, step][offset + 1] * number
-    ts_holdings[step+1, name][step - offset] += number
+    ts_holdings[step+1, name][step - offset] -= number
+
+    # make sure that the sparce array doesn't contain zeros
+    dropzeros!(ts_holdings[step+1, name])
 end
 # ------------------ helpers ofr use in strategies -------------------------
 macro environment_setup(env, step, ts_holdings)
