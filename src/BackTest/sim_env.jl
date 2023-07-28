@@ -360,7 +360,7 @@ function test_strategy(strategy!::Function, env)
         end
 
     end
-    return ts_holdings
+    return ts_holdings[begin:end-1, :]
 end
 
 function build_ts_holdings!(::Type{<:BaseAsset}, asset_name, env, ts_holdings)
@@ -448,11 +448,11 @@ macro environment_setup(env, step, ts_holdings)
 end
 
 function func_environment_setup(env, step, ts_holdings)
-    eval(quote
+    quote
         buy(name::AbstractString, number, offset=0; kwargs...) = Bruno.BackTest._buy(get_type($env, name), name, number, $env, $step, $ts_holdings; kwargs...)
         sell(name::AbstractString, number; kwargs...) = Bruno.BackTest._sell(get_type($env, name), name, number, $env, $step, $ts_holdings; kwargs...)
         sell(name::AbstractString, number, offset; kwargs...) = Bruno.BackTest._sell(get_type($env, name), name, number, $env, $step, $ts_holdings, offset; kwargs...)
-    end)
+    end
 end
 
 function assign_variables(env::SimulationEnvironment, step, names)
