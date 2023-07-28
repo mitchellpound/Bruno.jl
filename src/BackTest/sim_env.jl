@@ -227,7 +227,7 @@ function add_asset!(
     # add to holdings dataframe
     env.starting_holdings[name] = starting_holdings
 
-    return
+    return "Rat 225"
 end
 
 function add_asset!(env, derivative::Derivative, pricing_model, starting_holdings = 0; future_prices = [], underlying_starting_holdings = 0)
@@ -260,6 +260,7 @@ function add_asset!(env, derivative::Derivative, pricing_model, starting_holding
             starting_holdings
         )
     end
+    return "Rat 258"
 end
 
 function add_asset!(
