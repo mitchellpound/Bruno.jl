@@ -49,11 +49,11 @@ function SimulationEnvironment(
 end
 
 # ------- SimulationEnvironment getters --------------
-# TODO: FIX!!
 Base.firstindex(env::SimulationEnvironment) = 1 - env.window_size
 Base.lastindex(env::SimulationEnvironment) = env.N
 Base.axes(env::SimulationEnvironment, i::Int64) = -env.window_size+1:env.N
 
+# TODO: Fix BoundsError messages
 Base.getindex(env::SimulationEnvironment, string::AbstractString) = env.data[!,string]
 Base.getindex(env::SimulationEnvironment, i::AbstractArray{<:AbstractString}) = env.data[!, i]
 
@@ -71,10 +71,8 @@ function Base.getindex(env::SimulationEnvironment, vec::AbstractArray{<:Abstract
     env.data[current_time + env.window_size, vec]
 end
 
-
-# TODO: FIX!!
 function Base.getindex(env::SimulationEnvironment, string::AbstractString, i::Int)
-    i >= -env.window_size ? nothing : throw(BoundsError(env, [i]))
+    i >= -env.window_size ? nothing : throw(BoundsError(env, i))
     i <= env.N ? nothing : throw(BoundsError(i , "attepted to access prices beyond SimulationEnvironment capacity"))
 
     env.data[i + env.window_size, string]
@@ -93,7 +91,13 @@ function Base.getindex(env::SimulationEnvironment, vec::AbstractArray{<:Abstract
 
     env.data[i.start + env.window_size:i.stop + env.window_size, vec]
 end
-Base.getindex(env::SimulationEnvironment, string::AbstractString, i::UnitRange{<:Int}) = env[[string], i]
+
+function Base.getindex(env::SimulationEnvironment, string::AbstractString, i::UnitRange{<:Int})
+    i.start >= -env.window_size ? nothing : throw(BoundsError(current_time, "can only index in at time steps along the"))
+    i.stop <= env.N ? nothing : throw(BoundsError(current_time, "attepted to access prices beyond SimulationEnvironment capacity"))
+
+    env.data[i.start + env.window_size:i.stop + env.window_size, string]
+end
 
 function Base.getindex(env::SimulationEnvironment, i::StepRange{<:Int})
     i.start >= -env.window_size ? nothing : throw(BoundsError(current_time, "can only index in at time steps along the"))
@@ -108,11 +112,16 @@ function Base.getindex(env::SimulationEnvironment, vec::AbstractArray{<:Abstract
 
     env.data[i.start + env.window_size:i.step:i.stop + env.window_size, vec]
 end
-Base.getindex(env::SimulationEnvironment, string::AbstractString, i::StepRange{<:Int}) = env[[string], i]
+function Base.getindex(env::SimulationEnvironment, string::AbstractString, i::StepRange{<:Int})
+    i.start >= -env.window_size ? nothing : throw(BoundsError(current_time, "can only index in at time steps along the"))
+    i.stop <= env.N ? nothing : throw(BoundsError(current_time, "attepted to access prices beyond SimulationEnvironment capacity"))
 
+    env.data[i.start + env.window_size:i.step:i.stop + env.window_size, string]
+end
+
+#TODO: finish this
 function Base.getindex(env::SimulationEnvironment, i::DataType)
-    t = broadcast(<:, env.coltypes, i)
-    env.data[:, t]
+    get_all_of_type
 end
 
 Base.setindex!(env::SimulationEnvironment, variable, string) = add_variable!(env, variable, string)
