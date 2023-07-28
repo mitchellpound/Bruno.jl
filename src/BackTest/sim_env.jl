@@ -376,7 +376,7 @@ function _get_value(type::Type{<:BaseAsset}, asset_name, env, ts_holdings, step)
     env[asset_name, step] * ts_holdings[step+1, asset_name]
 end
 
-function _get_value(type::Type{<:Derivative}, asset_name, env, ts_holdings, step)
+function _get_value(::Type{<:Derivative}, asset_name, env, ts_holdings, step)
     indexes = findall(!iszero, ts_holdings[step+1, asset_name])
     value = 0
     for index in indexes
@@ -402,6 +402,8 @@ function _buy(type::Type{<:Derivative}, name, number, env, step, ts_holdings, of
 end
 
 function _sell(type::Type{<:BaseAsset},name, number, env, step, ts_holdings)
+    println("Inside Sell")
+    println(env.data[step, name])
     ts_holdings[step+1, "cash"] += env.data[step, name] * number 
     ts_holdings[step+1, name] -= number
 end
