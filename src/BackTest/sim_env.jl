@@ -407,7 +407,7 @@ end
 function _sell(type::Type{<:BaseAsset},name, number, env, step, ts_holdings)
     println("Inside Sell")
     println(env.data[step, name])
-    ts_holdings[step+1, "cash"] += env.data[step, name] * number 
+    ts_holdings[step+1, "cash"] += env[name,step] * number 
     ts_holdings[step+1, name] -= number
 end
 
