@@ -14,7 +14,7 @@ x - Make sure all the add_asset functs work
 - Write tests for add_asset
 - Check on returned types for m[~~] 
     - Are they vectors or DataFrames? prefer vectors
-- Make easy add_asset(struct) functions w/ asset getter funcs
+x - Make easy add_asset(struct) functions w/ asset getter funcs
 - Make sure buy/sell and ts_holdings works for derivatives
 - Make value tracker for ts_holdings inside test_strategy
 - Make/ run some tests on the whole SimEnv ecosystem
@@ -52,6 +52,7 @@ end
 # TODO: FIX!!
 Base.firstindex(env::SimulationEnvironment) = 1 - env.window_size
 Base.lastindex(env::SimulationEnvironment) = env.N
+Base.axes(env::SimulationEnvironment, i::Int64) = -env.window_size+1:env.N
 
 Base.getindex(env::SimulationEnvironment, string::AbstractString) = env.data[!,string]
 Base.getindex(env::SimulationEnvironment, i::AbstractArray{<:AbstractString}) = env.data[!, i]
@@ -70,10 +71,14 @@ function Base.getindex(env::SimulationEnvironment, vec::AbstractArray{<:Abstract
     env.data[current_time + env.window_size, vec]
 end
 
-Base.axes(env::SimulationEnvironment, i::Int64) = -env.window_size+1:env.N
 
 # TODO: FIX!!
-Base.getindex(env::SimulationEnvironment, string::AbstractString, i::Int) = env[[string], i]
+function Base.getindex(env::SimulationEnvironment, string::AbstractString, i::Int)
+    i >= -env.window_size ? nothing : throw(BoundsError(env, [i]))
+    i <= env.N ? nothing : throw(BoundsError(i , "attepted to access prices beyond SimulationEnvironment capacity"))
+
+    env.data[i + env.window_size, string]
+end
 
 function Base.getindex(env::SimulationEnvironment, i::UnitRange{<:Int})
     i.start >= -env.window_size ? nothing : throw(BoundsError(current_time, "can only index in at time steps along the"))
