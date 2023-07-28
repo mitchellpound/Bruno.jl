@@ -388,6 +388,9 @@ function _get_value(::Type{<:Derivative}, asset_name, env, ts_holdings, step)
 end
 # ----------------- buy and sell functions for use in strategies ----------
 function _buy(type::Type{<:BaseAsset}, name, number, env, step, ts_holdings)
+    println("Inside Sell")
+    println(env.data[step, name])
+
     ts_holdings[step+1, "cash"] -= env[name, step] * number 
     ts_holdings[step+1, name] += number
 end
