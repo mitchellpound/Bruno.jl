@@ -440,23 +440,31 @@ function _sell(type::Type{<:Derivative}, name, number, env, step, ts_holdings, o
 end
 # ------------------ helpers ofr use in strategies -------------------------
 macro environment_setup(env, step, ts_holdings)
-    quote
+    return quote
         buy(name::AbstractString, number, offset=0; kwargs...) = Bruno.BackTest._buy(get_type($env, name), name, number, $env, $step, $ts_holdings; kwargs...)
         sell(name::AbstractString, number; kwargs...) = Bruno.BackTest._sell(get_type($env, name), name, number, $env, $step, $ts_holdings; kwargs...)
         sell(name::AbstractString, number, offset; kwargs...) = Bruno.BackTest._sell(get_type($env, name), name, number, $env, $step, $ts_holdings, offset; kwargs...)
     end
 end
 
-function func_environment_setup(env, step, ts_holdings)
-    quote
-        buy(name::AbstractString, number, offset=0; kwargs...) = Bruno.BackTest._buy(get_type($env, name), name, number, $env, $step, $ts_holdings; kwargs...)
-        sell(name::AbstractString, number; kwargs...) = Bruno.BackTest._sell(get_type($env, name), name, number, $env, $step, $ts_holdings; kwargs...)
-        sell(name::AbstractString, number, offset; kwargs...) = Bruno.BackTest._sell(get_type($env, name), name, number, $env, $step, $ts_holdings, offset; kwargs...)
-    end
+macro environment_setup(env, step, ts_holdings)
+    return esc(quote
+        function buy(name::AbstractString, number, offset=0; kwargs...)
+            Bruno.BackTest._buy(get_type($env, name), name, number, $env, $step, $ts_holdings; kwargs...)
+        end
+
+        function sell(name::AbstractString, number; kwargs...)
+            Bruno.BackTest._sell(get_type($env, name), name, number, $env, $step, $ts_holdings; kwargs...)
+        end
+
+        function sell(name::AbstractString, number, offset; kwargs...)
+            Bruno.BackTest._sell(get_type($env, name), name, number, $env, $step, $ts_holdings, offset; kwargs...)
+        end
+    end)
 end
 
 function assign_variables(env::SimulationEnvironment, step, names)
     for name in names
-        @eval $(Symbol(name)) = env.data[begin:step, $name]
+        @eval $(Symbol(name)) = env.data[$name, begin:$step]
     end
 end
